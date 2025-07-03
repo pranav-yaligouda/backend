@@ -2,7 +2,7 @@ import app from './app';
 import mongoose from 'mongoose';
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 4000;
-const HOST = process.env.HOST || '127.0.0.1';
+const HOST = '0.0.0.0';
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/AthaniMart';
 
 mongoose.connect(MONGODB_URI)
