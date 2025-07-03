@@ -24,5 +24,4 @@ yarn-error.log*
 # OS junk
 *.swp
 # Uploaded files (usually not tracked)
-uploads/
 logs/
