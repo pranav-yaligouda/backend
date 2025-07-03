@@ -48,13 +48,8 @@ app.use(express.json({ limit: '4mb' }));
 
 import fs from 'fs';
 
-let swaggerDocument;
-try {
-  swaggerDocument = require('../swagger.json');
-} catch (e) {
-  // Fallback for ts-node-dev: read JSON directly
-  swaggerDocument = JSON.parse(fs.readFileSync(path.join(__dirname, '../swagger.json'), 'utf-8'));
-}
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const swaggerDocument = require('../swagger.json');
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // DB health check endpoint
@@ -73,10 +68,13 @@ app.use(auditLogger);
 
 // API versioning
 app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/hotels', require('./routes/hotelRoutes').default);
-app.use('/api/v1/dishes', require('./routes/dishRoutes').default);
+import hotelRoutes from './routes/hotelRoutes';
+import dishRoutes from './routes/dishRoutes';
+import dishSearchRoutes from './routes/dishSearchRoutes';
 
-app.use('/api/v1/dish-search', require('./routes/dishSearchRoutes').default);
+app.use('/api/v1/hotels', hotelRoutes);
+app.use('/api/v1/dishes', dishRoutes);
+app.use('/api/v1/dish-search', dishSearchRoutes);
 
 app.use(errorHandler);
 
