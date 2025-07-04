@@ -69,26 +69,50 @@ export const createHotel = async (req: AuthRequest, res: Response) => {
 // Get hotel for logged-in manager
 export const getMyHotel = async (req: AuthRequest, res: Response) => {
   try {
-    console.log('DEBUG getMyHotel req.user:', req.user);
-    const manager = req.user._id;
-    let hotel = await Hotel.findOne({ manager });
-    console.log('DEBUG getMyHotel manager:', manager, 'hotel:', hotel);
+    console.log('[getMyHotel] req.user:', req.user);
+    // Try all common JWT user id fields
+    const managerRaw = req.user?._id || req.user?.id || req.user?.sub;
+    if (!managerRaw) {
+      console.error('[getMyHotel] No manager ID found in req.user:', req.user);
+      return res.status(400).json({ message: 'No manager ID found in token/user context' });
+    }
+    let managerObjId;
+    try {
+      managerObjId = typeof managerRaw === 'string' ? new mongoose.Types.ObjectId(managerRaw) : managerRaw;
+    } catch (e) {
+      console.error('[getMyHotel] Invalid manager ID for ObjectId conversion:', managerRaw, e);
+      return res.status(400).json({ message: 'Invalid manager ID' });
+    }
+
+    let hotel = await Hotel.findOne({ manager: managerObjId });
+    console.log('[getMyHotel] manager:', managerObjId, 'hotel:', hotel);
+
     if (!hotel) {
       // Try to auto-create hotel for hotel_manager using hotelName from User
-      const user = await User.findById(manager);
-      console.log('DEBUG getMyHotel user:', user);
+      const user = await User.findById(managerObjId);
+      console.log('[getMyHotel] user:', user);
       if (user && user.role === 'hotel_manager' && user.hotelName) {
-        hotel = await Hotel.create({ name: user.hotelName, manager: user._id });
-        console.log('DEBUG getMyHotel auto-created hotel:', hotel);
+        // Double-check if a hotel already exists (race condition safety)
+        const existingHotel = await Hotel.findOne({ manager: managerObjId });
+        if (existingHotel) {
+          hotel = existingHotel;
+        } else {
+          hotel = await Hotel.create({ name: user.hotelName, manager: user._id });
+          console.log('[getMyHotel] auto-created hotel:', hotel);
+        }
       } else {
-        console.log('DEBUG getMyHotel: No hotel and cannot auto-create');
+        console.log('[getMyHotel] No hotel and cannot auto-create');
         return res.status(404).json({ message: 'Hotel not found' });
       }
     }
     res.json(hotelToJson(hotel));
-  } catch (err) {
-    console.error('DEBUG getMyHotel error:', err);
-    res.status(500).json({ message: 'Failed to fetch hotel', error: err });
+  } catch (err: any) {
+    console.error('[getMyHotel] error:', err);
+    // If duplicate key error, return a clear message
+    if (err.code === 11000) {
+      return res.status(409).json({ message: 'Hotel already exists for this manager.' });
+    }
+    res.status(500).json({ message: 'Failed to fetch hotel', error: err?.message || err });
   }
 };
 

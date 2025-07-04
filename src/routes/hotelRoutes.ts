@@ -8,6 +8,16 @@ import { hotelSchema } from '../validation/hotel';
 
 const router = express.Router();
 
+// /me route must be above /:id to avoid shadowing
+router.get('/me', authMiddleware, requireHotelManager, getMyHotel);
+router.patch(
+  '/me',
+  authMiddleware,
+  requireHotelManager,
+  validateBody(hotelSchema),
+  updateMyHotel
+);
+
 // Public: Get a single hotel by ID (for menu page, etc)
 import { getHotelById } from '../controllers/hotelController';
 router.get('/:id', getHotelById);
@@ -23,14 +33,5 @@ router.post(
   createHotel
 );
 
-router.get('/me', authMiddleware, requireHotelManager, getMyHotel);
-
-router.patch(
-  '/me',
-  authMiddleware,
-  requireHotelManager,
-  validateBody(hotelSchema),
-  updateMyHotel
-);
 
 export default router;
