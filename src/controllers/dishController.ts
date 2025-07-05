@@ -13,7 +13,7 @@ import { AuthRequest } from '../types/AuthRequest';
  * Get all available dishes for a specific hotel by hotelId (public endpoint).
  * Returns an array of dishes or an empty array if none found.
  */
-export const getDishesByHotelId = async (req: Request<{ hotelId: string }>, res: Response, next: NextFunction) => {
+export const getDishesByHotelId = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { hotelId } = req.params;
     if (!hotelId || hotelId.length !== 24) {
@@ -36,6 +36,9 @@ export const getDishesByHotelId = async (req: Request<{ hotelId: string }>, res:
  */
 export const addDish = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
     const manager = req.user._id;
     const hotel = await Hotel.findOne({ manager });
     if (!hotel) return res.json({ success: false, data: null, error: 'Hotel not found' });
@@ -96,6 +99,9 @@ export const addDish = async (req: AuthRequest, res: Response, next: NextFunctio
 // Get all dishes for the hotel manager's hotel (with pagination)
 export const getMyDishes = async (req: AuthRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
     const manager = req.user._id;
     const hotel = await Hotel.findOne({ manager });
     if (!hotel) return res.status(404).json({ message: 'Hotel not found' });
@@ -125,7 +131,7 @@ export const getMyDishes = async (req: AuthRequest, res: Response) => {
 };
 
 // (Optional) Delete a dish
-export const deleteDish = async (req: AuthRequest<{ dishId: string }>, res: Response) => {
+export const deleteDish = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: 'Unauthorized' });

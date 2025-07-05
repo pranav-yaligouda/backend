@@ -15,8 +15,8 @@ import { AuthRequest } from '../types/AuthRequest';
  * Get a single hotel by its ID (public endpoint).
  * Returns hotel info or error if not found.
  */
-export const getHotelById = async (req: Request<{ id: string }>, res: Response, next: NextFunction) => {
-  const { id } = req.params;
+export const getHotelById = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  const { id } = req.params as { id: string };
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     return res.json({ success: false, data: null, error: 'Invalid hotel ID' });
   }
@@ -94,7 +94,7 @@ export const getMyHotel = async (req: AuthRequest, res: Response) => {
   try {
     console.log('[getMyHotel] req.user:', req.user);
     // Try all common JWT user id fields
-    const managerRaw = req.user?._id || req.user?.id || req.user?.sub;
+    const managerRaw = req.user?._id;
     if (!managerRaw) {
       console.error('[getMyHotel] No manager ID found in req.user:', req.user);
       return res.status(400).json({ message: 'No manager ID found in token/user context' });
@@ -147,6 +147,9 @@ export const getMyHotel = async (req: AuthRequest, res: Response) => {
  */
 export const updateMyHotel = async (req: AuthRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
     const manager = req.user._id;
     const { name, timings, location, holidays, image } = req.body;
     if (image) {

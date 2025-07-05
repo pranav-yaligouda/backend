@@ -20,17 +20,17 @@ router.patch(
 
 // Public: Get a single hotel by ID (for menu page, etc)
 import { getHotelById } from '../controllers/hotelController';
-router.get('/:id', getHotelById);
+router.get('/:id', (req, res, next) => getHotelById(req as any, res, next));
 
 // Public: Get all hotels (with dishes)
-router.get('/', getAllHotels);
+router.get('/', (req, res, next) => getAllHotels(req as any, res, next));
 
 router.post(
   '/',
   authMiddleware,
   requireHotelManager,
   validateBody(hotelSchema),
-  createHotel
+  (req, res) => createHotel(req as any, res)
 );
 
 

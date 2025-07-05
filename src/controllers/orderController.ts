@@ -41,7 +41,7 @@ export default class OrderController {
    * Get a single order by ID.
    * Requires authentication and access rights.
    */
-  static async getOrderById(req: AuthRequest<{ id: string }>, res: Response, next: NextFunction) {
+  static async getOrderById(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       if (!req.user) return res.status(401).json({ success: false, data: null, error: 'Unauthorized' });
       const order = await OrderService.getOrderById(req.params.id, req.user);
@@ -56,7 +56,7 @@ export default class OrderController {
    * Update the status of an order (vendor/agent).
    * Requires authentication and proper role.
    */
-  static async updateOrderStatus(req: AuthRequest<{ id: string }>, res: Response, next: NextFunction) {
+  static async updateOrderStatus(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       if (!req.user) return res.status(401).json({ success: false, data: null, error: 'Unauthorized' });
       const { status } = req.body;
