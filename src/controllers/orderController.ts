@@ -6,13 +6,14 @@
 import { Request, Response, NextFunction } from 'express';
 import OrderService from '../services/orderService';
 import { OrderStatus } from '../models/Order';
+import { AuthRequest } from '../types/AuthRequest';
 
 export default class OrderController {
   /**
    * Place a new order (customer).
    * Requires authentication.
    */
-  static async createOrder(req: Request, res: Response, next: NextFunction) {
+  static async createOrder(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       if (!req.user || !req.user._id) return res.status(401).json({ success: false, data: null, error: 'Unauthorized' });
       const order = await OrderService.createOrder({ ...req.body, customerId: req.user._id });
@@ -26,7 +27,7 @@ export default class OrderController {
    * Get all orders for the current user (role-based).
    * Requires authentication.
    */
-  static async getOrders(req: Request, res: Response, next: NextFunction) {
+  static async getOrders(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       if (!req.user) return res.status(401).json({ success: false, data: null, error: 'Unauthorized' });
       const orders = await OrderService.getOrdersByRole(req.user);
@@ -40,7 +41,7 @@ export default class OrderController {
    * Get a single order by ID.
    * Requires authentication and access rights.
    */
-  static async getOrderById(req: Request, res: Response, next: NextFunction) {
+  static async getOrderById(req: AuthRequest<{ id: string }>, res: Response, next: NextFunction) {
     try {
       if (!req.user) return res.status(401).json({ success: false, data: null, error: 'Unauthorized' });
       const order = await OrderService.getOrderById(req.params.id, req.user);
@@ -55,7 +56,7 @@ export default class OrderController {
    * Update the status of an order (vendor/agent).
    * Requires authentication and proper role.
    */
-  static async updateOrderStatus(req: Request, res: Response, next: NextFunction) {
+  static async updateOrderStatus(req: AuthRequest<{ id: string }>, res: Response, next: NextFunction) {
     try {
       if (!req.user) return res.status(401).json({ success: false, data: null, error: 'Unauthorized' });
       const { status } = req.body;
@@ -72,7 +73,7 @@ export default class OrderController {
    * Get available orders for delivery agents.
    * Requires authentication (delivery agent role).
    */
-  static async getAvailableOrdersForAgent(req: Request, res: Response, next: NextFunction) {
+  static async getAvailableOrdersForAgent(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const orders = await OrderService.getAvailableOrdersForAgent();
       res.json({ success: true, data: orders, error: null });

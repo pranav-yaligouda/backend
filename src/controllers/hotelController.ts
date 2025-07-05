@@ -15,7 +15,7 @@ import { AuthRequest } from '../types/AuthRequest';
  * Get a single hotel by its ID (public endpoint).
  * Returns hotel info or error if not found.
  */
-export const getHotelById = async (req: Request, res: Response, next: NextFunction) => {
+export const getHotelById = async (req: Request<{ id: string }>, res: Response, next: NextFunction) => {
   const { id } = req.params;
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     return res.json({ success: false, data: null, error: 'Invalid hotel ID' });
@@ -62,6 +62,9 @@ function isBase64Image(str: string): boolean {
 
 export const createHotel = async (req: AuthRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
     const manager = req.user._id;
     const { name, timings, location, holidays, image } = req.body;
     if (image) {
