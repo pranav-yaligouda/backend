@@ -3,10 +3,15 @@ import jwt from 'jsonwebtoken';
 
 export default function authenticateToken(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers['authorization'];
-  console.log('[authMiddleware] Authorization header:', authHeader);
+  // Log method and path for traceability
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[authMiddleware] ${req.method} ${req.originalUrl} - Authorization header:`, authHeader);
+  }
   const token = authHeader && authHeader.split(' ')[1];
-  console.log('[authMiddleware] Token:', token);
-  if (!token) return res.status(401).json({ error: 'No token provided' });
+  if (!token) {
+    console.error(`[authMiddleware] ${req.method} ${req.originalUrl} - No token provided`);
+    return res.status(401).json({ error: 'No token provided' });
+  }
   jwt.verify(token, process.env.JWT_SECRET!, (err: any, user: any) => {
     if (err) {
       console.log('[authMiddleware] Invalid token:', err);

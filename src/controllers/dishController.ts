@@ -1,37 +1,50 @@
-import { Request, Response } from 'express';
+/**
+ * Dish Controller
+ * Handles dish creation, retrieval, and management endpoints for hotels.
+ * All responses follow the { success, data, error } structure for consistency.
+ */
+import { NextFunction, Request, Response } from 'express';
 import Dish from '../models/Dish';
 import Hotel from '../models/Hotel';
 
-// Add a new dish for the hotel manager's hotel
-// Extend Express Request to include user (if not already done in your types)
-interface AuthRequest extends Request {
-  user: { _id: string };
+import { AuthUser } from '../types/AuthUser';
+
+export interface AuthRequest extends Request {
+  user: AuthUser;
   file?: Express.Multer.File;
   files?: Express.Multer.File[];
 }
 
-// Public: Get all dishes for a hotel by hotelId
-export const getDishesByHotelId = async (req: Request, res: Response) => {
+/**
+ * Get all available dishes for a specific hotel by hotelId (public endpoint).
+ * Returns an array of dishes or an empty array if none found.
+ */
+export const getDishesByHotelId = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { hotelId } = req.params;
     if (!hotelId || hotelId.length !== 24) {
-      return res.status(400).json({ message: 'Invalid hotelId' });
+      return res.json({ success: false, data: [], error: 'Invalid hotelId' });
     }
     const dishes = await Dish.find({ hotel: hotelId, available: true }).lean();
-    if (!dishes.length) {
-      return res.status(404).json({ message: 'No dishes found for this hotel' });
+    if (!dishes || !Array.isArray(dishes) || dishes.length === 0) {
+      return res.json({ success: true, data: [], error: null });
     }
-    res.json(dishes);
+    res.json({ success: true, data: dishes, error: null });
   } catch (err) {
-    res.status(500).json({ message: 'Failed to fetch dishes', error: err instanceof Error ? err.message : err });
+    res.status(500).json({ success: false, data: [], error: err instanceof Error ? err.message : String(err) });
   }
 };
 
-export const addDish = async (req: AuthRequest, res: Response) => {
+/**
+ * Add a new dish to the authenticated hotel manager's hotel.
+ * Requires authentication and hotel manager role.
+ * Accepts multipart/form-data or JSON.
+ */
+export const addDish = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const manager = req.user._id;
     const hotel = await Hotel.findOne({ manager });
-    if (!hotel) return res.status(404).json({ message: 'Hotel not found' });
+    if (!hotel) return res.json({ success: false, data: null, error: 'Hotel not found' });
 
     // Debug: log body and file
     console.log('DEBUG addDish req.body:', req.body);
@@ -56,7 +69,7 @@ export const addDish = async (req: AuthRequest, res: Response) => {
 
     // Validate fields
     if (!name || !price || !mealType || !cuisineType || !category || !dishName || !dietaryTags.length) {
-      return res.status(400).json({ message: 'Missing required fields', body: req.body });
+      return res.json({ success: false, data: null, error: 'Missing required fields' });
     }
 
     // Always set standardDish (fallback to name if not provided)

@@ -12,6 +12,7 @@ import authenticateToken from './middlewares/auth';
 import { auditLogger } from './middlewares/auditLogger';
 import mongoose from 'mongoose';
 import path from 'path';
+import orderRoutes from './routes/orderRoutes';
 
 
 dotenv.config();
@@ -39,9 +40,27 @@ app.use(morgan('combined'));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
 // Restrict CORS origin for production
+// For local development, set CORS_ORIGIN=http://localhost:3000 in your .env file
+// For production, set CORS_ORIGIN to your deployed frontend domain (e.g., https://yourfrontend.com)
+// Robust, production-ready CORS setup
+// Supports multiple origins (comma-separated in CORS_ORIGIN)
+const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').map(origin => origin.trim());
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, etc.)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, origin);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
 }));
+
+// For production, trust proxy for secure cookies (e.g., behind load balancer)
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
 app.use(express.json({ limit: '4mb' }));
 
 // Swagger docs
@@ -75,6 +94,9 @@ import dishSearchRoutes from './routes/dishSearchRoutes';
 app.use('/api/v1/hotels', hotelRoutes);
 app.use('/api/v1/dishes', dishRoutes);
 app.use('/api/v1/dish-search', dishSearchRoutes);
+
+// Register order routes with authentication
+app.use('/api/v1/orders', authenticateToken, orderRoutes);
 
 app.use(errorHandler);
 
