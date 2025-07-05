@@ -6,7 +6,8 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "test": "jest"
+    "test": "jest",
+    "postinstall": "npm install --include=dev"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

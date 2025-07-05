@@ -3,15 +3,13 @@
  * Handles hotel management, hotel info, and hotel-dish population endpoints.
  * All responses follow the { success, data, error } structure for consistency.
  */
-import { NextFunction, Request, Response } from 'express';
+import { NextFunction, Response } from 'express';
 import Hotel from '../models/Hotel';
 import User from '../models/User';
 import mongoose from 'mongoose';
 import Dish from '../models/Dish';
 
-interface AuthRequest extends Request {
-  user?: any;
-} 
+import { AuthRequest } from '../types/AuthRequest';
 
 /**
  * Get a single hotel by its ID (public endpoint).

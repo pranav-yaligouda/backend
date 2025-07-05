@@ -3,17 +3,11 @@
  * Handles dish creation, retrieval, and management endpoints for hotels.
  * All responses follow the { success, data, error } structure for consistency.
  */
-import { NextFunction, Request, Response } from 'express';
+import { NextFunction, Response } from 'express';
 import Dish from '../models/Dish';
 import Hotel from '../models/Hotel';
 
-import { AuthUser } from '../types/AuthUser';
-
-export interface AuthRequest extends Request {
-  user: AuthUser;
-  file?: Express.Multer.File;
-  files?: Express.Multer.File[];
-}
+import { AuthRequest } from '../types/AuthRequest';
 
 /**
  * Get all available dishes for a specific hotel by hotelId (public endpoint).
