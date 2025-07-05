@@ -1,3 +1,6 @@
+// ------------------------------
+// Express App Initialization
+// ------------------------------
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -6,21 +9,23 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import { cleanEnv, str, port } from 'envalid';
 import swaggerUi from 'swagger-ui-express';
+import mongoose from 'mongoose';
+import path from 'path';
+
+// Import API routes and middlewares
 import authRoutes from './routes/auth';
+import hotelRoutes from './routes/hotelRoutes';
+import dishRoutes from './routes/dishRoutes';
+import dishSearchRoutes from './routes/dishSearchRoutes';
+import orderRoutes from './routes/orderRoutes';
 import errorHandler from './middlewares/errorHandler';
 import authenticateToken from './middlewares/auth';
 import { auditLogger } from './middlewares/auditLogger';
-import mongoose from 'mongoose';
-import path from 'path';
-import orderRoutes from './routes/orderRoutes';
 
-
+// ------------------------------
+// Environment & Config
+// ------------------------------
 dotenv.config();
-
-// Debug: Print MongoDB URI at startup
-console.log('MONGODB_URI:', process.env.MONGODB_URI);
-
-// Environment validation
 cleanEnv(process.env, {
   MONGODB_URI: str(),
   JWT_SECRET: str(),
@@ -30,24 +35,26 @@ cleanEnv(process.env, {
 
 const app = express();
 
-// Serve static files from uploads directory
-
+// ------------------------------
+// Static Files
+// ------------------------------
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Security middlewares
+// ------------------------------
+// Security & Logging
+// ------------------------------
 app.use(helmet());
 app.use(morgan('combined'));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
-// Restrict CORS origin for production
-// For local development, set CORS_ORIGIN=http://localhost:3000 in your .env file
-// For production, set CORS_ORIGIN to your deployed frontend domain (e.g., https://yourfrontend.com)
-// Robust, production-ready CORS setup
-// Supports multiple origins (comma-separated in CORS_ORIGIN)
+// ------------------------------
+// CORS Configuration
+// ------------------------------
+// For local: CORS_ORIGIN=http://localhost:3000
+// For prod:  CORS_ORIGIN=https://yourfrontend.com
 const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').map(origin => origin.trim());
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, etc.)
+  origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, origin);
     } else {
@@ -57,51 +64,54 @@ app.use(cors({
   credentials: true,
 }));
 
-// For production, trust proxy for secure cookies (e.g., behind load balancer)
+// Trust proxy for secure cookies in production
 if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
+
+// ------------------------------
+// Body Parsing
+// ------------------------------
 app.use(express.json({ limit: '4mb' }));
 
-// Swagger docs
-
-import fs from 'fs';
-
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// ------------------------------
+// API Documentation
+// ------------------------------
 const swaggerDocument = require('../swagger.json');
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-// DB health check endpoint
+// ------------------------------
+// Health Check
+// ------------------------------
 app.get('/api/v1/health', async (req: Request, res: Response) => {
   const dbState = mongoose.connection.readyState;
   res.json({ status: dbState === 1 ? 'ok' : 'disconnected' });
 });
 
-// Example protected route
+// ------------------------------
+// Example Protected Route
+// ------------------------------
 app.get('/api/v1/protected', authenticateToken, (req: Request, res: Response) => {
   res.json({ message: 'This is a protected route', user: (req as any).user });
 });
 
-// Audit logging middleware (logs all mutating requests)
+// ------------------------------
+// Audit Logging
+// ------------------------------
 app.use(auditLogger);
 
-// API versioning
+// ------------------------------
+// API Routes
+// ------------------------------
 app.use('/api/v1/auth', authRoutes);
-import hotelRoutes from './routes/hotelRoutes';
-import dishRoutes from './routes/dishRoutes';
-import dishSearchRoutes from './routes/dishSearchRoutes';
-
 app.use('/api/v1/hotels', hotelRoutes);
 app.use('/api/v1/dishes', dishRoutes);
 app.use('/api/v1/dish-search', dishSearchRoutes);
-
-// Register order routes with authentication
 app.use('/api/v1/orders', authenticateToken, orderRoutes);
 
+// ------------------------------
+// Error Handling
+// ------------------------------
 app.use(errorHandler);
-
-// Debug: Warn if StandardDish collection is empty after connect
-
-
 
 export default app;

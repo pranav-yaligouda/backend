@@ -1,31 +1,46 @@
+// ------------------------------
+// Server Initialization
+// ------------------------------
 import app from './app';
 import mongoose from 'mongoose';
 import { createServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { setSocketIoInstance } from './services/orderService';
 
+// ------------------------------
+// Environment Variables
+// ------------------------------
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 4000;
 const HOST = '0.0.0.0';
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/AthaniMart';
+const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
+// ------------------------------
+// HTTP and Socket.IO Server
+// ------------------------------
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: process.env.CORS_ORIGIN || '*',
+    origin: CORS_ORIGIN.split(',').map(origin => origin.trim()),
     methods: ['GET', 'POST', 'PATCH'],
+    credentials: true,
   },
 });
 
 // Pass Socket.io instance to order service
 setSocketIoInstance(io);
 
+// Socket.IO connection handler
 io.on('connection', (socket: Socket) => {
-  // Client should join rooms for their userId and businessId for targeted notifications
+  // Clients join rooms for targeted notifications
   socket.on('join', (roomId: string) => {
     socket.join(roomId);
   });
 });
 
+// ------------------------------
+// MongoDB Connection
+// ------------------------------
 mongoose.connect(MONGODB_URI)
   .then(() => {
     console.log('Connected to MongoDB');
@@ -38,14 +53,14 @@ mongoose.connect(MONGODB_URI)
     process.exit(1);
   });
 
-process.on('SIGTERM', async () => {
+// ------------------------------
+// Graceful Shutdown
+// ------------------------------
+const shutdown = async (signal: string) => {
   await mongoose.connection.close();
-  console.log('MongoDB connection closed due to app termination');
+  console.log(`MongoDB connection closed due to app ${signal}`);
   process.exit(0);
-});
+};
 
-process.on('SIGINT', async () => {
-  await mongoose.connection.close();
-  console.log('MongoDB connection closed due to app interruption');
-  process.exit(0);
-});
+process.on('SIGTERM', () => shutdown('termination'));
+process.on('SIGINT', () => shutdown('interruption'));
