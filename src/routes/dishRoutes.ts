@@ -8,6 +8,9 @@ import { dishSchema } from '../validation/dish';
 
 const router = Router();
 
+// Public: Get all dishes (paginated, filterable)
+router.get('/', require('./../controllers/dishController').getAllDishes);
+
 // Public: Get all dishes for a hotel by hotelId
 router.get('/hotel/:hotelId', getDishesByHotelId);
 
@@ -22,6 +25,7 @@ router.post(
 );
 
 router.get('/mine', authMiddleware, requireHotelManager, getMyDishes as any);
+router.patch('/:dishId', authMiddleware, requireHotelManager, require('./../controllers/dishController').updateDish);
 router.delete('/:dishId', authMiddleware, requireHotelManager, deleteDish as any);
 
 export default router;

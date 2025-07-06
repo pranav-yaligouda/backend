@@ -1,51 +1,95 @@
-import { Request, Response } from 'express';
+/**
+ * Hotel Controller
+ * Handles hotel management, hotel info, and hotel-dish population endpoints.
+ * All responses follow the { success, data, error } structure for consistency.
+ */
+import { NextFunction, Response } from 'express';
 import Hotel from '../models/Hotel';
 import User from '../models/User';
 import mongoose from 'mongoose';
 import Dish from '../models/Dish';
 
-interface AuthRequest extends Request {
-  user?: any;
-} 
+import { AuthRequest } from '../types/AuthRequest';
 
-// Get a single hotel by ID (for menu page, etc)
-export const getHotelById = async (req: Request, res: Response) => {
-  const { id } = req.params;
+/**
+ * Get a single hotel by its ID (public endpoint).
+ * Returns hotel info or error if not found.
+ */
+export const getHotelById = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  const { id } = req.params as { id: string };
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(400).json({ message: 'Invalid hotel ID' });
+    return res.json({ success: false, data: null, error: 'Invalid hotel ID' });
   }
   try {
     const hotel = await Hotel.findById(id).lean();
-    if (!hotel) return res.status(404).json({ message: 'Hotel not found' });
+    if (!hotel) return res.json({ success: false, data: null, error: 'Hotel not found' });
     // Omit sensitive fields if any (e.g., manager, etc)
-    res.json(hotel);
+    res.json({ success: true, data: hotel, error: null });
   } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err instanceof Error ? err.message : err });
+    next(err);
   }
 };
 
-// Get all hotels (for public homepage)
-export const getAllHotels = async (req: Request, res: Response) => {
+/**
+ * Get all hotels (paginated, filterable, public endpoint).
+ * GET /api/v1/hotels?page=1&limit=20&search=...&location=...
+ * Returns paginated hotels, each with their associated dishes.
+ * Response: { success, data: { items, page, limit, totalPages, totalItems }, error }
+ */
+import { Request } from 'express';
+
+export const getAllHotels = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const hotels = await Hotel.find().lean();
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.max(1, Math.min(Number(req.query.limit) || 20, 100));
+    const skip = (page - 1) * limit;
+    const filter: any = {};
+    if (req.query.search) {
+      filter.name = { $regex: req.query.search, $options: 'i' };
+    }
+    if (req.query.location) {
+      filter.location = { $regex: req.query.location, $options: 'i' };
+    }
+    // Add more filters as needed
+    const [hotels, totalItems] = await Promise.all([
+      Hotel.find(filter).skip(skip).limit(limit).lean(),
+      Hotel.countDocuments(filter)
+    ]);
     // Populate dishes for each hotel
     const hotelsWithDishes = await Promise.all(hotels.map(async (hotel) => {
-      const dishes = await Dish.find({ hotel: hotel._id }).lean();
+      const dishes = await Dish.find({ hotel: hotel._id, available: true }).lean();
       return { ...hotel, dishes };
     }));
-    res.json(hotelsWithDishes);
+    res.json({
+      success: true,
+      data: {
+        items: hotelsWithDishes,
+        page,
+        limit,
+        totalPages: Math.ceil(totalItems / limit),
+        totalItems
+      },
+      error: null
+    });
   } catch (err) {
-    res.status(500).json({ message: 'Failed to fetch hotels', error: err });
+    res.status(500).json({ success: false, data: null, error: err instanceof Error ? err.message : String(err) });
   }
 };
 
-// Create a hotel (called during hotel_manager registration or profile setup)
+/**
+ * Create a new hotel for the authenticated hotel manager.
+ * Requires authentication and hotel manager role.
+ * Validates image format and size if provided.
+ */
 function isBase64Image(str: string): boolean {
   return typeof str === 'string' && /^data:image\/[a-zA-Z]+;base64,/.test(str);
 }
 
 export const createHotel = async (req: AuthRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
     const manager = req.user._id;
     const { name, timings, location, holidays, image } = req.body;
     if (image) {
@@ -67,11 +111,15 @@ export const createHotel = async (req: AuthRequest, res: Response) => {
 };
 
 // Get hotel for logged-in manager
+/**
+ * Get the authenticated hotel manager's hotel profile.
+ * Requires authentication and hotel manager role.
+ */
 export const getMyHotel = async (req: AuthRequest, res: Response) => {
   try {
     console.log('[getMyHotel] req.user:', req.user);
     // Try all common JWT user id fields
-    const managerRaw = req.user?._id || req.user?.id || req.user?.sub;
+    const managerRaw = req.user?._id;
     if (!managerRaw) {
       console.error('[getMyHotel] No manager ID found in req.user:', req.user);
       return res.status(400).json({ message: 'No manager ID found in token/user context' });
@@ -117,8 +165,16 @@ export const getMyHotel = async (req: AuthRequest, res: Response) => {
 };
 
 // Update hotel profile (name, image, timings, location)
+/**
+ * Update the authenticated hotel manager's hotel profile.
+ * Requires authentication and hotel manager role.
+ * Validates input before updating.
+ */
 export const updateMyHotel = async (req: AuthRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
     const manager = req.user._id;
     const { name, timings, location, holidays, image } = req.body;
     if (image) {
