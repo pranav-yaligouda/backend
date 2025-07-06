@@ -3,6 +3,8 @@ import mongoose, { Document, Schema } from 'mongoose';
 export type OrderStatus =
   | 'PLACED'
   | 'ACCEPTED_BY_VENDOR'
+  | 'PREPARING'
+  | 'READY_FOR_PICKUP'
   | 'ACCEPTED_BY_AGENT'
   | 'PICKED_UP'
   | 'DELIVERED'
@@ -28,18 +30,13 @@ export interface IOrder extends Document {
   status: OrderStatus;
   deliveryAddress: {
     addressLine: string;
-    city: string;
-    state: string;
-    pincode: string;
-    coordinates?: { lat: number; lng: number };
+    coordinates: { lat: number; lng: number };
   };
   pickupAddress: {
     addressLine: string;
-    city: string;
-    state: string;
-    pincode: string;
-    coordinates?: { lat: number; lng: number };
+    coordinates: { lat: number; lng: number };
   };
+  paymentMethod: 'cod' | 'online';
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -47,37 +44,35 @@ export interface IOrder extends Document {
 
 const OrderItemSchema = new Schema<IOrderItem>({
   type: { type: String, enum: ['dish', 'product'], required: true },
-  itemId: { type: Schema.Types.ObjectId, required: true, refPath: 'items.type' },
+  itemId: { type: Schema.Types.ObjectId, required: true },
   name: { type: String, required: true },
   quantity: { type: Number, required: true },
   price: { type: Number, required: true },
 });
 
-const AddressSchema = {
+const AddressSchema = new Schema({
   addressLine: { type: String, required: true },
-  city: { type: String, required: true },
-  state: { type: String, required: true },
-  pincode: { type: String, required: true },
   coordinates: {
-    lat: { type: Number },
-    lng: { type: Number },
+    lat: { type: Number, required: true },
+    lng: { type: Number, required: true },
   },
-};
+});
 
 const OrderSchema = new Schema<IOrder>({
   businessType: { type: String, enum: ['hotel', 'store'], required: true },
-  businessId: { type: Schema.Types.ObjectId, required: true, refPath: 'businessType' },
+  businessId: { type: Schema.Types.ObjectId, required: true },
   items: { type: [OrderItemSchema], required: true },
   customerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   deliveryAgentId: { type: Schema.Types.ObjectId, ref: 'User' },
   status: {
     type: String,
-    enum: ['PLACED', 'ACCEPTED_BY_VENDOR', 'ACCEPTED_BY_AGENT', 'PICKED_UP', 'DELIVERED', 'CANCELLED', 'REJECTED'],
+    enum: ['PLACED', 'ACCEPTED_BY_VENDOR', 'PREPARING', 'READY_FOR_PICKUP', 'ACCEPTED_BY_AGENT', 'PICKED_UP', 'DELIVERED', 'CANCELLED', 'REJECTED'],
     default: 'PLACED',
     required: true,
   },
   deliveryAddress: { type: AddressSchema, required: true },
   pickupAddress: { type: AddressSchema, required: true },
+  paymentMethod: { type: String, enum: ['cod', 'online'], required: true, default: 'cod' },
   notes: { type: String },
 }, { timestamps: true });
 

@@ -130,6 +130,82 @@ export const getMyDishes = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// Update a dish (PATCH /api/v1/dishes/:dishId)
+/**
+ * Update a dish by ID (hotel manager only).
+ * Only allows updating fields belonging to the manager's hotel.
+ * Validates ownership and supports partial updates.
+ *
+ * Request body: any subset of dish fields (name, price, description, etc.)
+ * Response: { success, data, error }
+ */
+export const updateDish = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, data: null, error: 'Unauthorized' });
+    }
+    const manager = req.user._id;
+    const hotel = await Hotel.findOne({ manager });
+    if (!hotel) return res.status(404).json({ success: false, data: null, error: 'Hotel not found' });
+    const { dishId } = req.params;
+    const dish = await Dish.findOne({ _id: dishId, hotel: hotel._id });
+    if (!dish) return res.status(404).json({ success: false, data: null, error: 'Dish not found' });
+
+    // Only allow updates to allowed fields
+    const allowedFields = ['name', 'description', 'price', 'image', 'available', 'mealType', 'cuisineType', 'category', 'dishName', 'dietaryTags', 'standardDish'] as const;
+    type AllowedField = typeof allowedFields[number];
+    for (const key of Object.keys(req.body)) {
+      if (allowedFields.includes(key as AllowedField)) {
+        (dish as any)[key] = req.body[key];
+      }
+    }
+    await dish.save();
+    res.json({ success: true, data: dish, error: null });
+  } catch (err) {
+    res.status(500).json({ success: false, data: null, error: err instanceof Error ? err.message : String(err) });
+  }
+};
+
+
+/**
+ * Public: Get all dishes (paginated, filterable)
+ * GET /api/v1/dishes?page=1&limit=20&hotelId=...&category=...
+ * Returns paginated, filtered dishes for all users.
+ * Response: { success, data: { items, page, limit, totalPages, totalItems }, error }
+ */
+import { Request } from 'express';
+
+export const getAllDishes = async (req: Request, res: Response) => {
+  try {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.max(1, Math.min(Number(req.query.limit) || 20, 100));
+    const skip = (page - 1) * limit;
+    const filter: any = { available: true };
+    if (req.query.hotelId) filter.hotel = req.query.hotelId;
+    if (req.query.category) filter.category = req.query.category;
+    if (req.query.mealType) filter.mealType = req.query.mealType;
+    if (req.query.cuisineType) filter.cuisineType = req.query.cuisineType;
+    // Add more filters as needed
+    const [items, totalItems] = await Promise.all([
+      Dish.find(filter).skip(skip).limit(limit).lean(),
+      Dish.countDocuments(filter)
+    ]);
+    res.json({
+      success: true,
+      data: {
+        items,
+        page,
+        limit,
+        totalPages: Math.ceil(totalItems / limit),
+        totalItems
+      },
+      error: null
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, data: null, error: err instanceof Error ? err.message : String(err) });
+  }
+};
+
 // (Optional) Delete a dish
 export const deleteDish = async (req: AuthRequest, res: Response) => {
   try {

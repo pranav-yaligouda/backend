@@ -5,8 +5,10 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import OrderService from '../services/orderService';
+import { orderQuerySchema, orderCreateSchema, orderStatusSchema } from '../validators/orderValidators';
 import { OrderStatus } from '../models/Order';
 import { AuthRequest } from '../types/AuthRequest';
+import mongoose from 'mongoose';
 
 export default class OrderController {
   /**
@@ -16,7 +18,34 @@ export default class OrderController {
   static async createOrder(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       if (!req.user || !req.user._id) return res.status(401).json({ success: false, data: null, error: 'Unauthorized' });
-      const order = await OrderService.createOrder({ ...req.body, customerId: req.user._id });
+      // Validate body
+      const parsed = orderCreateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, data: null, error: parsed.error.flatten() });
+      }
+      const mongoose = require('mongoose');
+      // Force customerId and businessId to ObjectId
+      // Deep clone to avoid mutation issues
+      const orderData = JSON.parse(JSON.stringify(parsed.data));
+      if (req.user.role === 'customer' && req.user._id) {
+        orderData.customerId = new mongoose.Types.ObjectId(req.user._id);
+      } else {
+        // Remove customerId if not a customer (avoid type error)
+        delete orderData.customerId;
+      }
+      if (orderData.businessId) {
+        if (typeof orderData.businessId === 'string' && mongoose.isValidObjectId(orderData.businessId)) {
+          orderData.businessId = new mongoose.Types.ObjectId(orderData.businessId);
+        } else if (typeof orderData.businessId === 'string') {
+          // Remove invalid string businessId
+          delete (orderData as any).businessId;
+        }
+      }
+      // Final type safety: remove businessId if still string
+      if (typeof orderData.businessId === 'string') {
+        delete (orderData as any).businessId;
+      }
+      const order = await OrderService.createOrder(orderData);
       res.status(201).json({ success: true, data: order, error: null });
     } catch (err: any) {
       next(err);
@@ -27,11 +56,33 @@ export default class OrderController {
    * Get all orders for the current user (role-based).
    * Requires authentication.
    */
+  /**
+   * Get all orders for the current user (role-based, paginated).
+   * GET /api/v1/orders?page=1&pageSize=20&status=...
+   * Returns paginated orders for the current user.
+   * Response: { success, data: { items, page, pageSize, totalPages, totalItems }, error }
+   */
   static async getOrders(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       if (!req.user) return res.status(401).json({ success: false, data: null, error: 'Unauthorized' });
-      const orders = await OrderService.getOrdersByRole(req.user);
-      res.json({ success: true, data: orders, error: null });
+      // Validate and parse query params
+      const parsed = orderQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, data: null, error: parsed.error.flatten() });
+      }
+      const { page, pageSize, status, dateFrom, dateTo } = parsed.data;
+      const result = await OrderService.getOrdersByRole(req.user, { page, pageSize, status, dateFrom, dateTo });
+      res.json({
+        success: true,
+        data: {
+          items: result.data,
+          page: result.page,
+          pageSize: result.pageSize,
+          totalPages: result.totalPages,
+          totalItems: result.total
+        },
+        error: null
+      });
     } catch (err: any) {
       next(err);
     }
@@ -59,8 +110,12 @@ export default class OrderController {
   static async updateOrderStatus(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       if (!req.user) return res.status(401).json({ success: false, data: null, error: 'Unauthorized' });
-      const { status } = req.body;
-      if (!status) return res.status(400).json({ success: false, data: null, error: 'Status is required' });
+      // Validate body
+      const parsed = orderStatusSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, data: null, error: parsed.error.flatten() });
+      }
+      const { status } = parsed.data;
       const order = await OrderService.updateOrderStatus(req.params.id, req.user, status as OrderStatus);
       if (!order) return res.status(404).json({ success: false, data: null, error: 'Order not found or access denied' });
       res.json({ success: true, data: order, error: null });

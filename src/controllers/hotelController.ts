@@ -31,23 +31,48 @@ export const getHotelById = async (req: AuthRequest, res: Response, next: NextFu
 };
 
 /**
- * Get all hotels with their dishes (public endpoint).
- * Returns an array of hotels, each with their associated dishes.
+ * Get all hotels (paginated, filterable, public endpoint).
+ * GET /api/v1/hotels?page=1&limit=20&search=...&location=...
+ * Returns paginated hotels, each with their associated dishes.
+ * Response: { success, data: { items, page, limit, totalPages, totalItems }, error }
  */
+import { Request } from 'express';
+
 export const getAllHotels = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const hotels = await Hotel.find().lean();
-    if (!hotels || !Array.isArray(hotels) || hotels.length === 0) {
-      return res.json({ success: true, data: [], error: null });
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.max(1, Math.min(Number(req.query.limit) || 20, 100));
+    const skip = (page - 1) * limit;
+    const filter: any = {};
+    if (req.query.search) {
+      filter.name = { $regex: req.query.search, $options: 'i' };
     }
+    if (req.query.location) {
+      filter.location = { $regex: req.query.location, $options: 'i' };
+    }
+    // Add more filters as needed
+    const [hotels, totalItems] = await Promise.all([
+      Hotel.find(filter).skip(skip).limit(limit).lean(),
+      Hotel.countDocuments(filter)
+    ]);
     // Populate dishes for each hotel
     const hotelsWithDishes = await Promise.all(hotels.map(async (hotel) => {
-      const dishes = await Dish.find({ hotel: hotel._id }).lean();
+      const dishes = await Dish.find({ hotel: hotel._id, available: true }).lean();
       return { ...hotel, dishes };
     }));
-    res.json({ success: true, data: hotelsWithDishes, error: null });
+    res.json({
+      success: true,
+      data: {
+        items: hotelsWithDishes,
+        page,
+        limit,
+        totalPages: Math.ceil(totalItems / limit),
+        totalItems
+      },
+      error: null
+    });
   } catch (err) {
-    res.status(500).json({ success: false, data: [], error: err instanceof Error ? err.message : String(err) });
+    res.status(500).json({ success: false, data: null, error: err instanceof Error ? err.message : String(err) });
   }
 };
 
