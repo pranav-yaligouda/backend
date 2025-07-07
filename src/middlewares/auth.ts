@@ -24,14 +24,22 @@ export default function authenticateToken(req: Request, res: Response, next: Nex
         userObj = JSON.parse(user);
       } catch {}
     }
-    // For legacy tokens, support both id and _id
+    // Always ensure req.user._id and req.user.id are set and are strings
     if (userObj && userObj.id && !userObj._id) {
       userObj._id = userObj.id;
     }
+    if (userObj && userObj._id && typeof userObj._id !== 'string') {
+      userObj._id = String(userObj._id);
+    }
+    if (userObj && userObj._id && !userObj.id) {
+      userObj.id = userObj._id;
+    }
+    if (userObj && userObj.id && typeof userObj.id !== 'string') {
+      userObj.id = String(userObj.id);
+    }
     (req as any).user = userObj;
-    console.log('[authMiddleware] req.user set to:', userObj);
+    console.log('[authMiddleware] req.user set to:', userObj, 'id:', userObj.id, '_id:', userObj._id);
     next();
   });
 }
-
 

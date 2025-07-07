@@ -109,6 +109,12 @@ app.use('/api/v1/dishes', dishRoutes);
 app.use('/api/v1/dish-search', dishSearchRoutes);
 app.use('/api/v1/orders', authenticateToken, orderRoutes);
 
+// Store/Product routes
+import storeRoutes from './routes/storeRoutes';
+import productRoutes from './routes/productRoutes';
+app.use('/api/v1/stores', storeRoutes);
+app.use('/api/v1/products', productRoutes);
+
 // ------------------------------
 // Error Handling
 // ------------------------------

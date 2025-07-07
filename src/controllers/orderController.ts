@@ -19,7 +19,7 @@ export default class OrderController {
     try {
       if (!req.user || !req.user._id) return res.status(401).json({ success: false, data: null, error: 'Unauthorized' });
       // Validate body
-      const parsed = orderCreateSchema.safeParse(req.body);
+      const parsed = await orderCreateSchema.safeParseAsync(req.body);
       if (!parsed.success) {
         return res.status(400).json({ success: false, data: null, error: parsed.error.flatten() });
       }
@@ -95,7 +95,7 @@ export default class OrderController {
   static async getOrderById(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       if (!req.user) return res.status(401).json({ success: false, data: null, error: 'Unauthorized' });
-      const order = await OrderService.getOrderById(req.params.id, req.user);
+      const order: Record<string, any> | null = await OrderService.getOrderById(req.params.id, req.user);
       if (!order) return res.status(404).json({ success: false, data: null, error: 'Order not found or access denied' });
       res.json({ success: true, data: order, error: null });
     } catch (err: any) {

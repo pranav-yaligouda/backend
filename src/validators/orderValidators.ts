@@ -21,6 +21,8 @@ export const orderQuerySchema = z.object({
   dateTo: z.string().optional(),
 });
 
+import ProductModel from '../models/Product';
+
 export const orderCreateSchema = z.object({
   businessType: z.enum(['hotel', 'store']),
   businessId: z.string(),
@@ -48,6 +50,27 @@ export const orderCreateSchema = z.object({
   }),
   paymentMethod: z.enum(['cod', 'online']),
   notes: z.string().optional(),
+}).superRefine(async (data, ctx) => {
+  if (data.businessType === 'store') {
+    for (const [i, item] of data.items.entries()) {
+      if (item.type === 'product') {
+        const product = await ProductModel.findById(item.itemId);
+        if (!product || !product.available) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Product not found or unavailable: ${item.name}`,
+            path: ['items', i, 'itemId']
+          });
+        } else if (item.quantity > product.stock) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Insufficient stock for product: ${product.name}`,
+            path: ['items', i, 'quantity']
+          });
+        }
+      }
+    }
+  }
 });
 
 export const orderStatusSchema = z.object({

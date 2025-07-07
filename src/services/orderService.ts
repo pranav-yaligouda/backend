@@ -1,5 +1,5 @@
 import Order, { IOrder, OrderStatus } from '../models/Order';
-import User from '../models/User';
+import Product from '../models/Product';
 import mongoose from 'mongoose';
 
 // Placeholder for Socket.io instance
@@ -11,13 +11,46 @@ export const setSocketIoInstance = (ioInstance: any) => {
 export default class OrderService {
   // Create a new order
   static async createOrder(orderData: Partial<IOrder>): Promise<IOrder> {
-    // Accept paymentMethod in orderData. No extra logic needed unless you want to validate it.
-    const order = await Order.create(orderData);
-    // Emit real-time event to hotel/store owner
-    if (io) {
-      io.to(String(order.businessId)).emit('order:new', order);
+    // Enhanced: Validate and decrement product stock for product orders
+    if (orderData.businessType === 'store' && Array.isArray(orderData.items)) {
+      const session = await mongoose.startSession();
+      session.startTransaction();
+      try {
+        for (const item of orderData.items) {
+          if (item.type !== 'product') continue;
+          const product = await Product.findById(item.itemId).session(session);
+          if (!product || !product.available) {
+            throw new Error(`Product not found or unavailable: ${item.name}`);
+          }
+          if (item.quantity > product.stock) {
+            throw new Error(`Insufficient stock for product: ${product.name}`);
+          }
+          // Decrement stock
+          product.stock -= item.quantity;
+          await product.save({ session });
+        }
+        const [order] = await Order.create([orderData], { session });
+        if (!order) throw new Error('Order creation failed');
+        await session.commitTransaction();
+        // Emit real-time event to store owner
+        if (io) {
+          io.to(String(order.businessId)).emit('order:new', order);
+        }
+        return order;
+      } catch (err) {
+        await session.abortTransaction();
+        throw err;
+      } finally {
+        session.endSession();
+      }
+    } else {
+      // Hotel/dish order (legacy logic)
+      const order = await Order.create(orderData);
+      if (io) {
+        io.to(String(order.businessId)).emit('order:new', order);
+      }
+      return order;
     }
-    return order;
   }
 
   // Get orders by user role, with pagination and filtering
@@ -45,14 +78,12 @@ export default class OrderService {
         break;
       }
       case 'store_owner': {
-        // If you have a Store model, use it. Otherwise, fallback to businessId = user._id
-        // const Store = require('../models/Store').default;
-        // const stores = await Store.find({ owner: user._id }).select('_id');
-        // const storeIds = stores.map((s: any) => s._id);
-        // query.businessType = 'store';
-        // query.businessId = { $in: storeIds };
+        // Use Store model to find all stores owned by this user
+        const Store = require('../models/Store').default;
+        const stores = await Store.find({ owner: user._id }).select('_id');
+        const storeIds = stores.map((s: any) => s._id);
         query.businessType = 'store';
-        query.businessId = user._id; // fallback: may need adjustment if Store model is added
+        query.businessId = { $in: storeIds };
         break;
       }
       case 'delivery_agent':
@@ -78,7 +109,7 @@ export default class OrderService {
       selectFields = '';
     }
     const skip = (page - 1) * pageSize;
-    const [data, total] = await Promise.all([
+    const [orders, total] = await Promise.all([
       Order.find(query)
         .select(selectFields)
         .sort({ createdAt: -1 })
@@ -86,13 +117,34 @@ export default class OrderService {
         .limit(pageSize),
       Order.countDocuments(query),
     ]);
+
+    // Populate product details for product order items
+    const populatedOrders = await Promise.all(
+      orders.map(async (order: any) => {
+        if (order.businessType === 'store' && Array.isArray(order.items)) {
+          const populatedItems = await Promise.all(order.items.map(async (item: any) => {
+            if (item.type === 'product') {
+              const product = await Product.findById(item.itemId);
+              // Type guard for toObject
+              const plainItem = typeof item.toObject === 'function' ? item.toObject() : { ...item };
+              return { ...plainItem, product };
+            }
+            return typeof item.toObject === 'function' ? item.toObject() : { ...item };
+          }));
+          order = typeof order.toObject === 'function' ? order.toObject() : { ...order };
+          order.items = populatedItems;
+          return order;
+        }
+        return typeof order.toObject === 'function' ? order.toObject() : { ...order };
+      })
+    );
     const totalPages = Math.ceil(total / pageSize);
-    return { data, total, page, pageSize, totalPages };
+    return { data: populatedOrders, total, page, pageSize, totalPages };
   }
 
   // Get a single order by ID (with access check)
-  static async getOrderById(orderId: string, user: any): Promise<IOrder | null> {
-    const order = await Order.findById(orderId);
+  static async getOrderById(orderId: string, user: any): Promise<Record<string, any> | null> {
+    let order = await Order.findById(orderId);
     if (!order) return null;
     // Access control: only involved users can view
     if (
@@ -100,9 +152,26 @@ export default class OrderService {
       String(order.businessId) === String(user._id) ||
       String(order.deliveryAgentId) === String(user._id)
     ) {
-      return order;
+      // Populate product details for product order items
+      if (order.businessType === 'store' && Array.isArray(order.items)) {
+        const populatedItems = await Promise.all(order.items.map(async (item: any) => {
+          if (item.type === 'product') {
+            const product = await Product.findById(item.itemId);
+            const plainItem = typeof item.toObject === 'function' ? item.toObject() : { ...item };
+            return { ...plainItem, product };
+          }
+          return typeof item.toObject === 'function' ? item.toObject() : { ...item };
+        }));
+        let plainOrder: any = typeof order.toObject === 'function' ? order.toObject() : { ...order };
+        if (plainOrder) {
+          plainOrder.items = populatedItems;
+        }
+        return plainOrder;
+      }
+      return (typeof order.toObject === 'function' ? order.toObject() : { ...order }) as Record<string, any>;
+
     }
-    return null;
+    return null as Record<string, any> | null;
   }
 
   // Update order status (with role and status checks)
