@@ -10,6 +10,11 @@ export interface IStore extends Document {
     coordinates: [number, number]; // [lng, lat]
     address?: string;
   };
+  timings?: {
+    [day: string]: { open: string; close: string; holiday: boolean };
+  };
+  holidays?: string[];
+  categories?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -30,6 +35,18 @@ const StoreSchema = new Schema<IStore>({
       default: undefined
     },
     address: { type: String },
+  },
+  timings: {
+    type: Object as () => { [day: string]: { open: string; close: string; holiday: boolean } },
+    default: undefined
+  },
+  holidays: {
+    type: [String],
+    default: [],
+  },
+  categories: {
+    type: [String],
+    default: [],
   },
 }, {
   timestamps: true

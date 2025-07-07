@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
 export default function authenticateToken(req: Request, res: Response, next: NextFunction) {
+  console.log('[authMiddleware] CALLED');
   const authHeader = req.headers['authorization'];
   // Log method and path for traceability
   if (process.env.NODE_ENV !== 'production') {

@@ -61,10 +61,10 @@ export const createStore = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Invalid or missing store owner ID in token/user context' });
     }
     const owner = new mongoose.Types.ObjectId(ownerRaw);
-    const { name, address, image, location } = req.body;
+    const { name, address, image, location, timings, holidays, categories } = req.body;
     const existing = await Store.findOne({ owner });
     if (existing) return res.status(400).json({ message: 'Store already exists for this owner.' });
-    const store = await Store.create({ name, address, image, location, owner });
+    const store = await Store.create({ name, address, image, location, owner, timings, holidays, categories });
     res.status(201).json(store);
   } catch (err) {
     res.status(500).json({ message: 'Failed to create store', error: err instanceof Error ? err.message : err });
@@ -79,9 +79,9 @@ function storeToJson(store: any) {
 
 // Get my store (store owner only)
 export const getMyStore = async (req: AuthRequest, res: Response) => {
+  console.log('getMyStore CALLED');
   try {
     console.log('[getMyStore] req.user:', req.user);
-    // Try all common JWT user id fields
     const ownerRaw = req.user?._id || req.user?.id;
     if (!ownerRaw) {
       console.error('[getMyStore] No owner ID found in req.user:', req.user);
@@ -102,20 +102,29 @@ export const getMyStore = async (req: AuthRequest, res: Response) => {
       // Try to auto-create store for store_owner using storeName or name from User
       const user = await User.findById(ownerObjId);
       console.log('[getMyStore] user:', user);
-      if (user && user.role === 'store_owner' && (user.storeName || user.name)) {
-        // Double-check if a store already exists (race condition safety)
-        const existingStore = await Store.findOne({ owner: ownerObjId });
-        if (existingStore) {
-          store = existingStore;
+      if (user && user.role === 'store_owner') {
+        const storeName = user.storeName || user.name;
+        if (storeName) {
+          // Double-check if a store already exists (race condition safety)
+          const existingStore = await Store.findOne({ owner: ownerObjId });
+          if (existingStore) {
+            store = existingStore;
+            console.log('[getMyStore] found existing store after double-check:', store);
+          } else {
+            store = await Store.create({ name: storeName, owner: user._id });
+            console.log('[getMyStore] auto-created store:', store);
+          }
         } else {
-          store = await Store.create({ name: user.storeName || user.name, owner: user._id });
-          console.log('[getMyStore] auto-created store:', store);
+          console.log('[getMyStore] User has no storeName or name. Returning minimal store info for modal prefill.');
+          // Return minimal info for modal prefill
+          return res.status(200).json({ success: true, data: { name: '', owner: user._id }, error: null });
         }
       } else {
-        console.log('[getMyStore] No store and cannot auto-create');
-        return res.status(404).json({ success: false, data: null, error: 'Store not found and cannot auto-create' });
+        console.log('[getMyStore] No store and cannot auto-create. User:', user);
+        return res.status(400).json({ success: false, data: null, error: 'Store not found and cannot auto-create' });
       }
     }
+    console.log('[getMyStore] returning store:', store);
     return res.json({ success: true, data: storeToJson(store), error: null });
   } catch (err: any) {
     console.error('[getMyStore] error:', err);
@@ -144,11 +153,14 @@ export const updateMyStore = async (req: AuthRequest, res: Response) => {
     if (!store) return res.status(404).json({ success: false, data: null, error: 'Store not found.' });
 
     // Update allowed fields
-    const { name, address, image, location } = req.body;
+    const { name, address, image, location, timings, holidays, categories } = req.body;
     if (name !== undefined) store.name = name;
     if (address !== undefined) store.address = address;
     if (image !== undefined) store.image = image;
     if (location !== undefined) store.location = location;
+    if (timings !== undefined) store.timings = timings;
+    if (holidays !== undefined) store.holidays = holidays;
+    if (categories !== undefined) store.categories = categories;
     // Add other fields as needed
 
     await store.save();
