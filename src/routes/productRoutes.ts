@@ -6,7 +6,7 @@ import {
   updateProduct,
   deleteProduct
 } from '../controllers/productController';
-import { validateProduct } from '../../src/validation/product';
+import { validateProduct } from '../validation/product';
 import authenticate from '../middlewares/auth';
 
 const router = express.Router();
