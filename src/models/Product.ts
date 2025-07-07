@@ -13,6 +13,7 @@ export interface IProduct extends Document {
   image?: string;
   category: string;
   available: boolean;
+  unit: 'grams' | 'kg' | 'pieces';
   isDeleted?: boolean; // for soft delete
   createdAt: Date;
   updatedAt: Date;
@@ -27,6 +28,7 @@ const ProductSchema = new Schema<IProduct>({
   image: { type: String },
   category: { type: String, required: true, enum: ALLOWED_CATEGORIES },
   available: { type: Boolean, default: true },
+  unit: { type: String, enum: ['grams', 'kg', 'pieces'], default: 'pieces', required: true },
   isDeleted: { type: Boolean, default: false }, // soft delete
 }, {
   timestamps: true
