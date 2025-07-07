@@ -64,17 +64,18 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ message: 'Only store owners can create products.' });
     }
     const owner = req.user._id;
-    const { storeId, name, description, price, stock, image, category, available } = req.body;
-    if (!storeId || !mongoose.Types.ObjectId.isValid(storeId)) {
+    const { storeId, store, name, description, price, stock, image, category, available, unit } = req.body;
+    const resolvedStoreId = storeId || store;
+    if (!resolvedStoreId || !mongoose.Types.ObjectId.isValid(resolvedStoreId)) {
       return res.status(400).json({ message: 'Invalid store ID' });
     }
     if (!ALLOWED_CATEGORIES.includes(category)) {
       return res.status(400).json({ message: 'Invalid category. Allowed: ' + ALLOWED_CATEGORIES.join(', ') });
     }
     // Ensure the store belongs to this owner
-    const store = await Store.findOne({ _id: storeId, owner });
-    if (!store) return res.status(403).json({ message: 'You can only add products to your own store.' });
-    const product = await Product.create({ store: storeId, name, description, price, stock, image, category, available });
+    const storeDoc = await Store.findOne({ _id: resolvedStoreId, owner });
+    if (!storeDoc) return res.status(403).json({ message: 'You can only add products to your own store.' });
+    const product = await Product.create({ store: resolvedStoreId, name, description, price, stock, image, category, available, unit });
     res.status(201).json(product);
   } catch (err) {
     res.status(500).json({ message: 'Failed to create product', error: err instanceof Error ? err.message : err });
