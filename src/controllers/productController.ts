@@ -1,10 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
-import Product from '../models/Product';
+import Product, { ALLOWED_CATEGORIES } from '../models/Product';
 import Store from '../models/Store';
 import { AuthRequest } from '../types/AuthRequest';
 import mongoose from 'mongoose';
 
-// Get all products (public, paginated, filterable by store)
+// Get all products (public, paginated, filterable by store/category)
 export const getAllProducts = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const page = Math.max(1, Number(req.query.page) || 1);
@@ -14,9 +14,14 @@ export const getAllProducts = async (req: Request, res: Response, next: NextFunc
     if (req.query.storeId && mongoose.Types.ObjectId.isValid(req.query.storeId as string)) {
       filter.store = req.query.storeId;
     }
+    if (req.query.category && ALLOWED_CATEGORIES.includes(req.query.category as string)) {
+      filter.category = req.query.category;
+    }
     if (req.query.search) {
       filter.name = { $regex: req.query.search, $options: 'i' };
     }
+    // isDeleted is filtered by model pre-hook, but ensure here for robustness
+    filter.isDeleted = false;
     const [products, totalItems] = await Promise.all([
       Product.find(filter).skip(skip).limit(limit).lean(),
       Product.countDocuments(filter)
@@ -44,7 +49,7 @@ export const getProductById = async (req: Request, res: Response, next: NextFunc
     return res.json({ success: false, data: null, error: 'Invalid product ID' });
   }
   try {
-    const product = await Product.findById(id).lean();
+    const product = await Product.findOne({ _id: id, isDeleted: false }).lean();
     if (!product) return res.json({ success: false, data: null, error: 'Product not found' });
     res.json({ success: true, data: product, error: null });
   } catch (err) {
@@ -62,6 +67,9 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
     const { storeId, name, description, price, stock, image, category, available } = req.body;
     if (!storeId || !mongoose.Types.ObjectId.isValid(storeId)) {
       return res.status(400).json({ message: 'Invalid store ID' });
+    }
+    if (!ALLOWED_CATEGORIES.includes(category)) {
+      return res.status(400).json({ message: 'Invalid category. Allowed: ' + ALLOWED_CATEGORIES.join(', ') });
     }
     // Ensure the store belongs to this owner
     const store = await Store.findOne({ _id: storeId, owner });
@@ -84,7 +92,7 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: 'Invalid product ID' });
     }
-    const product = await Product.findById(id);
+    const product = await Product.findOne({ _id: id, isDeleted: false });
     if (!product) return res.status(404).json({ message: 'Product not found' });
     // Ensure the product belongs to a store owned by this user
     const store = await Store.findOne({ _id: product.store, owner });
@@ -95,7 +103,12 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
     if (price !== undefined) product.price = price;
     if (stock !== undefined) product.stock = stock;
     if (image !== undefined) product.image = image;
-    if (category !== undefined) product.category = category;
+    if (category !== undefined) {
+      if (!ALLOWED_CATEGORIES.includes(category)) {
+        return res.status(400).json({ message: 'Invalid category. Allowed: ' + ALLOWED_CATEGORIES.join(', ') });
+      }
+      product.category = category;
+    }
     if (available !== undefined) product.available = available;
     await product.save();
     res.json(product);
@@ -104,7 +117,7 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Delete product (store owner only)
+// Delete product (store owner only, soft delete)
 export const deleteProduct = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user || req.user.role !== 'store_owner') {
@@ -115,14 +128,25 @@ export const deleteProduct = async (req: AuthRequest, res: Response) => {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: 'Invalid product ID' });
     }
-    const product = await Product.findById(id);
+    const product = await Product.findOne({ _id: id, isDeleted: false });
     if (!product) return res.status(404).json({ message: 'Product not found' });
     // Ensure the product belongs to a store owned by this user
     const store = await Store.findOne({ _id: product.store, owner });
     if (!store) return res.status(403).json({ message: 'You can only delete products in your own store.' });
-    await product.deleteOne();
+    product.isDeleted = true;
+    await product.save();
     res.json({ success: true, data: null, error: null });
   } catch (err) {
     res.status(500).json({ message: 'Failed to delete product', error: err instanceof Error ? err.message : err });
   }
+};
+
+// Atomic stock decrement for order fulfillment (example helper)
+export const decrementProductStock = async (productId: string, quantity: number) => {
+  // Returns the updated product or null if insufficient stock
+  return Product.findOneAndUpdate(
+    { _id: productId, stock: { $gte: quantity }, isDeleted: false },
+    { $inc: { stock: -quantity } },
+    { new: true }
+  );
 };

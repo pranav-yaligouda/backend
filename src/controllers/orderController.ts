@@ -5,7 +5,7 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import OrderService from '../services/orderService';
-import { orderQuerySchema, orderCreateSchema, orderStatusSchema } from '../validators/orderValidators';
+import { orderQuerySchema, orderCreateSchema, orderStatusSchema } from '../validation/order';
 import { OrderStatus } from '../models/Order';
 import { AuthRequest } from '../types/AuthRequest';
 import mongoose from 'mongoose';

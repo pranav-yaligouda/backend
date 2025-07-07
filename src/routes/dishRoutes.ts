@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { addDish, getMyDishes, deleteDish, getDishesByHotelId } from '../controllers/dishController';
-import upload from '../middleware/uploadImage';
+import upload from '../middlewares/uploadImage';
 import authMiddleware from '../middlewares/auth';
 import { requireHotelManager } from '../middlewares/role';
 import { validateBody } from '../middlewares/validate';

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import OrderController from '../controllers/orderController';
 import { validateQuery } from '../middlewares/validate';
-import { orderQuerySchema } from '../validators/orderValidators';
+import { orderQuerySchema } from '../validation/order';
 
 const router = Router();
 

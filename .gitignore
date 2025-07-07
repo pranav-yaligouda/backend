@@ -1,7 +1,6 @@
 # Node modules and build output
 node_modules/
 dist/
-coverage/
 *.log
 
 # Local env files
@@ -25,3 +24,6 @@ yarn-error.log*
 *.swp
 # Uploaded files (usually not tracked)
 logs/
+
+# API documentation
+documentations/API.md
