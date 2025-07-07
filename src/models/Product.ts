@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Query } from 'mongoose';
 
 export const ALLOWED_CATEGORIES = [
   'Vegetables', 'Fruits', 'Groceries', 'Medicines', 'Dairy', 'Household', 'Stationary'
@@ -38,7 +38,7 @@ const ProductSchema = new Schema<IProduct>({
 ProductSchema.index({ store: 1, name: 1 }, { unique: true });
 
 // Only return non-deleted products by default
-ProductSchema.pre(/^find/, function (next) {
+ProductSchema.pre(/^find/, function (this: Query<any, any>, next) {
   this.where({ isDeleted: false });
   next();
 });
