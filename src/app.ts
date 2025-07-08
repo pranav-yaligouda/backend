@@ -21,6 +21,7 @@ import orderRoutes from './routes/orderRoutes';
 import errorHandler from './middlewares/errorHandler';
 import authenticateToken from './middlewares/auth';
 import { auditLogger } from './middlewares/auditLogger';
+import agentRoutes from './routes/agentRoutes';
 
 // ------------------------------
 // Environment & Config
@@ -108,6 +109,7 @@ app.use('/api/v1/hotels', hotelRoutes);
 app.use('/api/v1/dishes', dishRoutes);
 app.use('/api/v1/dish-search', dishSearchRoutes);
 app.use('/api/v1/orders', authenticateToken, orderRoutes);
+app.use('/api/v1/agent', agentRoutes);
 
 // Store/Product routes
 import storeRoutes from './routes/storeRoutes';

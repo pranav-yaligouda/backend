@@ -1,6 +1,9 @@
 import Order, { IOrder, OrderStatus } from '../models/Order';
 import Product from '../models/Product';
 import mongoose from 'mongoose';
+import User from '../models/User';
+import { getLogger } from '../middlewares/auditLogger';
+const logger = getLogger('orderService');
 
 // Placeholder for Socket.io instance
 let io: any = null;
@@ -189,8 +192,15 @@ export default class OrderService {
         break;
       case 'ACCEPTED_BY_AGENT':
         if (user.role === 'delivery_agent' && !order.deliveryAgentId && order.status === 'ACCEPTED_BY_VENDOR') {
+          // Check agent is verified and online
+          const agent = await User.findById(user._id);
+          if (!agent || !agent.isVerified || !agent.isOnline) {
+            logger.warn(`Agent ${user._id} attempted to accept order ${orderId} but is not verified/online.`);
+            throw new Error('Agent must be verified and online to accept orders');
+          }
           order.status = 'ACCEPTED_BY_AGENT';
           order.deliveryAgentId = user._id;
+          logger.info(`Order ${orderId} assigned to agent ${user._id}`);
         } else {
           throw new Error('Unauthorized or invalid status transition');
         }

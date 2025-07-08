@@ -10,6 +10,13 @@ export interface IUser extends Document {
   role: UserRole;
   storeName?: string; // for store_owner
   hotelName?: string; // for hotel_manager
+  // Delivery agent fields
+  driverLicenseNumber?: string;
+  vehicleRegistrationNumber?: string;
+  isVerified?: boolean;
+  verificationStatus?: 'pending' | 'verified' | 'rejected';
+  isOnline?: boolean;
+  lastOnlineAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -22,6 +29,13 @@ const UserSchema: Schema = new Schema<IUser>({
   role: { type: String, enum: ['customer', 'hotel_manager', 'store_owner', 'delivery_agent', 'admin'], required: true },
   storeName: { type: String }, // only for store_owner
   hotelName: { type: String }, // only for hotel_manager
+  // Delivery agent fields
+  driverLicenseNumber: { type: String },
+  vehicleRegistrationNumber: { type: String },
+  isVerified: { type: Boolean, default: false },
+  verificationStatus: { type: String, enum: ['pending', 'verified', 'rejected'], default: undefined },
+  isOnline: { type: Boolean, default: false },
+  lastOnlineAt: { type: Date },
 }, { timestamps: true });
 
 const User = mongoose.model<IUser>('User', UserSchema);

@@ -3,8 +3,10 @@ export interface AuthUser {
   _id: string;           // Always string in JWT/session context
   id?: string;           // Legacy support: sometimes present in JWT
   role: string;          // Or import UserRole if you want stricter typing
-  name?: string;
+  name: string;
   email?: string;
-  phone?: string;
+  phone: string;
+  isVerified?: boolean;
+  verificationStatus?: 'pending' | 'verified' | 'rejected';
   // Add any other properties you attach to req.user after authentication
 }
