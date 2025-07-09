@@ -13,7 +13,6 @@ export interface IUser extends Document {
   // Delivery agent fields
   driverLicenseNumber?: string;
   vehicleRegistrationNumber?: string;
-  isVerified?: boolean;
   verificationStatus?: 'pending' | 'verified' | 'rejected';
   isOnline?: boolean;
   lastOnlineAt?: Date;
@@ -32,7 +31,6 @@ const UserSchema: Schema = new Schema<IUser>({
   // Delivery agent fields
   driverLicenseNumber: { type: String },
   vehicleRegistrationNumber: { type: String },
-  isVerified: { type: Boolean, default: false },
   verificationStatus: { type: String, enum: ['pending', 'verified', 'rejected'], default: undefined },
   isOnline: { type: Boolean, default: false },
   lastOnlineAt: { type: Date },

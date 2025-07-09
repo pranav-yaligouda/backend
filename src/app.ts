@@ -1,27 +1,29 @@
 // ------------------------------
 // Express App Initialization
 // ------------------------------
-import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import express, { Request, Response } from 'express';
 import helmet from 'helmet';
-import morgan from 'morgan';
-import rateLimit from 'express-rate-limit';
-import { cleanEnv, str, port } from 'envalid';
-import swaggerUi from 'swagger-ui-express';
 import mongoose from 'mongoose';
+import morgan from 'morgan';
 import path from 'path';
+import rateLimit from 'express-rate-limit';
+import swaggerUi from 'swagger-ui-express';
+import { cleanEnv, port, str } from 'envalid';
 
 // Import API routes and middlewares
+import agentRoutes from './routes/agentRoutes';
 import authRoutes from './routes/auth';
-import hotelRoutes from './routes/hotelRoutes';
 import dishRoutes from './routes/dishRoutes';
 import dishSearchRoutes from './routes/dishSearchRoutes';
-import orderRoutes from './routes/orderRoutes';
 import errorHandler from './middlewares/errorHandler';
 import authenticateToken from './middlewares/auth';
 import { auditLogger } from './middlewares/auditLogger';
-import agentRoutes from './routes/agentRoutes';
+import hotelRoutes from './routes/hotelRoutes';
+import orderRoutes from './routes/orderRoutes';
+import productRoutes from './routes/productRoutes';
+import storeRoutes from './routes/storeRoutes';
 
 // ------------------------------
 // Environment & Config
@@ -46,13 +48,10 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // ------------------------------
 app.use(helmet());
 app.use(morgan('combined'));
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
 // ------------------------------
-// CORS Configuration
+// CORS Configuration (Robust for Dev & Prod)
 // ------------------------------
-// For local: CORS_ORIGIN=http://localhost:3000
-// For prod:  CORS_ORIGIN=https://yourfrontend.com
 const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').map(origin => origin.trim());
 app.use(cors({
   origin: (origin, callback) => {
@@ -63,6 +62,19 @@ app.use(cors({
     }
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200,
+}));
+
+// ------------------------------
+// Rate Limiting (Higher in Dev, Strict in Prod)
+// ------------------------------
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'production' ? 100 : 1000,
+  standardHeaders: true,
+  legacyHeaders: false,
 }));
 
 // Trust proxy for secure cookies in production
@@ -110,10 +122,6 @@ app.use('/api/v1/dishes', dishRoutes);
 app.use('/api/v1/dish-search', dishSearchRoutes);
 app.use('/api/v1/orders', authenticateToken, orderRoutes);
 app.use('/api/v1/agent', agentRoutes);
-
-// Store/Product routes
-import storeRoutes from './routes/storeRoutes';
-import productRoutes from './routes/productRoutes';
 app.use('/api/v1/stores', storeRoutes);
 app.use('/api/v1/products', productRoutes);
 

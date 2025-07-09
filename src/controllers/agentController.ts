@@ -21,7 +21,6 @@ export default class AgentController {
         {
           driverLicenseNumber,
           vehicleRegistrationNumber,
-          isVerified: false, // Set to false until admin verifies
           verificationStatus: 'pending',
         },
         { new: true }
@@ -46,7 +45,7 @@ export default class AgentController {
       const user = await User.findById(userId);
       if (!user) return res.status(404).json({ success: false, error: 'User not found' });
       if (user.role !== 'delivery_agent') return res.status(403).json({ success: false, error: 'Not a delivery agent' });
-      if (!user.isVerified) return res.status(403).json({ success: false, error: 'Agent not verified' });
+      if (user.verificationStatus !== 'verified') return res.status(403).json({ success: false, error: 'Agent not verified' });
       user.isOnline = isOnline;
       user.lastOnlineAt = new Date();
       await user.save();

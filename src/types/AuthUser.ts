@@ -6,7 +6,6 @@ export interface AuthUser {
   name: string;
   email?: string;
   phone: string;
-  isVerified?: boolean;
   verificationStatus?: 'pending' | 'verified' | 'rejected';
   // Add any other properties you attach to req.user after authentication
 }

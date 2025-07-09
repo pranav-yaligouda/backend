@@ -194,7 +194,7 @@ export default class OrderService {
         if (user.role === 'delivery_agent' && !order.deliveryAgentId && order.status === 'ACCEPTED_BY_VENDOR') {
           // Check agent is verified and online
           const agent = await User.findById(user._id);
-          if (!agent || !agent.isVerified || !agent.isOnline) {
+          if (!agent || agent.verificationStatus !== 'verified' || !agent.isOnline) {
             logger.warn(`Agent ${user._id} attempted to accept order ${orderId} but is not verified/online.`);
             throw new Error('Agent must be verified and online to accept orders');
           }
