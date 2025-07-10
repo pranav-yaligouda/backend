@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import User from '../models/User';
 import { agentVerificationSchema, agentOnlineStatusSchema } from '../validation/user';
 import { getLogger } from '../middlewares/auditLogger';
+import orderService from '../services/orderService';
 
 const logger = getLogger('agent');
 
@@ -68,6 +69,15 @@ export default class AgentController {
       return res.json({ success: true, data: { ...userObj, verificationStatus: userObj.verificationStatus } });
     } catch (err) {
       next(err);
+    }
+  }
+
+  static async getAvailableOrders(req: Request, res: Response) {
+    try {
+      const orders = await orderService.getAvailableOrdersForAgent();
+      return res.json(orders);
+    } catch (err: any) {
+      return res.status(500).json({ message: err.message || 'Failed to fetch available orders' });
     }
   }
 } 

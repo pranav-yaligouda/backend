@@ -10,5 +10,6 @@ router.post('/verify', authenticateToken, AgentController.submitVerification);
 router.post('/online', authenticateToken, AgentController.setOnlineStatus);
 // Get agent profile
 router.get('/profile', authenticateToken, AgentController.getProfile);
+router.get('/orders/available', authenticateToken, AgentController.getAvailableOrders);
 
 export default router; 

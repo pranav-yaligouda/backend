@@ -46,6 +46,27 @@ export default class OrderService {
   static async createOrder(orderData: Partial<IOrder>): Promise<IOrder> {
     // Enhanced: Validate and decrement product stock for product orders
     if (orderData.businessType === 'store' && Array.isArray(orderData.items)) {
+      // Set pickupAddress for store orders
+      if (orderData.businessId) {
+        const Store = require('../models/Store').default;
+        const store = await Store.findById(orderData.businessId);
+        if (store) {
+          // Use store.location.address if available, else store.address
+          const addressLine = store.location?.address || store.address || '';
+          let coordinates = { lat: 0, lng: 0 };
+          if (Array.isArray(store.location?.coordinates) && store.location.coordinates.length === 2) {
+            // Store: [lng, lat]
+            coordinates = {
+              lat: store.location.coordinates[1],
+              lng: store.location.coordinates[0],
+            };
+          }
+          orderData.pickupAddress = {
+            addressLine,
+            coordinates,
+          };
+        }
+      }
       const session = await mongoose.startSession();
       session.startTransaction();
       try {
@@ -252,53 +273,78 @@ export default class OrderService {
           )
         ) {
           order.status = 'ACCEPTED_BY_VENDOR';
-          // Emit to all online, verified delivery agents
-          if (io) {
-            io.to('delivery_agents_online').emit('order:new', order);
-          }
+          if (io) io.to('delivery_agents_online').emit('order:new', order);
+        } else {
+          throw new Error('Unauthorized or invalid status transition');
+        }
+        break;
+      case 'PREPARING':
+        if (
+          order.status === 'ACCEPTED_BY_VENDOR' &&
+          (
+            (user.role === 'hotel_manager' && await isHotelManager(user._id, String(order.businessId))) ||
+            (user.role === 'store_owner' && await isStoreOwner(user._id, String(order.businessId)))
+          )
+        ) {
+          order.status = 'PREPARING';
+        } else {
+          throw new Error('Unauthorized or invalid status transition');
+        }
+        break;
+      case 'READY_FOR_PICKUP':
+        if (
+          order.status === 'PREPARING' &&
+          (
+            (user.role === 'hotel_manager' && await isHotelManager(user._id, String(order.businessId))) ||
+            (user.role === 'store_owner' && await isStoreOwner(user._id, String(order.businessId)))
+          )
+        ) {
+          order.status = 'READY_FOR_PICKUP';
         } else {
           throw new Error('Unauthorized or invalid status transition');
         }
         break;
       case 'ACCEPTED_BY_AGENT':
-        if (user.role === 'delivery_agent' && !order.deliveryAgentId && order.status === 'ACCEPTED_BY_VENDOR') {
-          // Check agent is verified and online
-          const agent = await User.findById(user._id);
-          if (!agent || agent.verificationStatus !== 'verified' || !agent.isOnline) {
-            logger.warn(`Agent ${user._id} attempted to accept order ${orderId} but is not verified/online.`);
-            throw new Error('Agent must be verified and online to accept orders');
-          }
+        if (
+          user.role === 'delivery_agent' &&
+          order.status === 'READY_FOR_PICKUP' &&
+          !order.deliveryAgentId
+        ) {
           order.status = 'ACCEPTED_BY_AGENT';
           order.deliveryAgentId = user._id;
-          logger.info(`Order ${orderId} assigned to agent ${user._id}`);
         } else {
           throw new Error('Unauthorized or invalid status transition');
         }
         break;
       case 'PICKED_UP':
-        if (user.role === 'delivery_agent' && String(order.deliveryAgentId) === String(user._id) && order.status === 'ACCEPTED_BY_AGENT') {
+        if (
+          user.role === 'delivery_agent' &&
+          order.status === 'ACCEPTED_BY_AGENT' &&
+          String(order.deliveryAgentId) === String(user._id)
+        ) {
           order.status = 'PICKED_UP';
         } else {
           throw new Error('Unauthorized or invalid status transition');
         }
         break;
+      case 'OUT_FOR_DELIVERY':
+        if (
+          user.role === 'delivery_agent' &&
+          order.status === 'PICKED_UP' &&
+          String(order.deliveryAgentId) === String(user._id)
+        ) {
+          order.status = 'OUT_FOR_DELIVERY';
+        } else {
+          throw new Error('Unauthorized or invalid status transition');
+        }
+        break;
       case 'DELIVERED':
-        if (user.role === 'delivery_agent' && String(order.deliveryAgentId) === String(user._id) && order.status === 'PICKED_UP') {
+        if (
+          user.role === 'delivery_agent' &&
+          order.status === 'OUT_FOR_DELIVERY' &&
+          String(order.deliveryAgentId) === String(user._id)
+        ) {
           order.status = 'DELIVERED';
-        } else {
-          throw new Error('Unauthorized or invalid status transition');
-        }
-        break;
-      case 'CANCELLED':
-        if (user.role === 'customer' && String(order.customerId) === String(user._id) && ['PLACED', 'ACCEPTED_BY_VENDOR'].includes(order.status)) {
-          order.status = 'CANCELLED';
-        } else {
-          throw new Error('Unauthorized or invalid status transition');
-        }
-        break;
-      case 'REJECTED':
-        if (['hotel_manager', 'store_owner'].includes(user.role) && String(order.businessId) === String(user._id) && order.status === 'PLACED') {
-          order.status = 'REJECTED';
         } else {
           throw new Error('Unauthorized or invalid status transition');
         }
@@ -319,7 +365,7 @@ export default class OrderService {
   // Get available orders for delivery agents (not yet accepted)
   static async getAvailableOrdersForAgent(): Promise<IOrder[]> {
     return Order.find({
-      status: 'ACCEPTED_BY_VENDOR',
+      status: 'READY_FOR_PICKUP',
       $or: [
         { deliveryAgentId: null },
         { deliveryAgentId: { $exists: false } }

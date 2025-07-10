@@ -80,6 +80,10 @@ export const orderCreateSchema = z.object({
   }
 });
 
+// Allowed order status transitions:
+// PLACED -> ACCEPTED_BY_VENDOR -> PREPARING -> READY_FOR_PICKUP -> ACCEPTED_BY_AGENT -> PICKED_UP -> OUT_FOR_DELIVERY -> DELIVERED
+// Only vendors can move through PLACED, ACCEPTED_BY_VENDOR, PREPARING, READY_FOR_PICKUP.
+// Only agents can move through ACCEPTED_BY_AGENT, PICKED_UP, OUT_FOR_DELIVERY, DELIVERED.
 export const orderStatusSchema = z.object({
   status: z.enum([
     'PLACED',
@@ -88,6 +92,7 @@ export const orderStatusSchema = z.object({
     'READY_FOR_PICKUP',
     'ACCEPTED_BY_AGENT',
     'PICKED_UP',
+    'OUT_FOR_DELIVERY',
     'DELIVERED',
     'CANCELLED',
     'REJECTED',

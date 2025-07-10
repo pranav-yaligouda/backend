@@ -7,6 +7,7 @@ export type OrderStatus =
   | 'READY_FOR_PICKUP'
   | 'ACCEPTED_BY_AGENT'
   | 'PICKED_UP'
+  | 'OUT_FOR_DELIVERY'
   | 'DELIVERED'
   | 'CANCELLED'
   | 'REJECTED';
@@ -58,20 +59,46 @@ const AddressSchema = new Schema({
   },
 });
 
+/**
+ * Order Status Flow:
+ * PLACED -> ACCEPTED_BY_VENDOR -> PREPARING -> READY_FOR_PICKUP -> ACCEPTED_BY_AGENT -> PICKED_UP -> OUT_FOR_DELIVERY -> DELIVERED
+ * Only vendors can move through PLACED, ACCEPTED_BY_VENDOR, PREPARING, READY_FOR_PICKUP.
+ * Only agents can move through ACCEPTED_BY_AGENT, PICKED_UP, OUT_FOR_DELIVERY, DELIVERED.
+ * deliveryAgentId is set only at ACCEPTED_BY_AGENT.
+ * pickupAddress: { addressLine: string, coordinates: { lat: number, lng: number } }
+ */
+const pickupAddressSchema = new Schema({
+  addressLine: { type: String, required: true },
+  coordinates: {
+    lat: { type: Number, required: true },
+    lng: { type: Number, required: true }
+  }
+}, { _id: false });
+
 const OrderSchema = new Schema<IOrder>({
   businessType: { type: String, enum: ['hotel', 'store'], required: true },
   businessId: { type: Schema.Types.ObjectId, required: true },
   items: { type: [OrderItemSchema], required: true },
   customerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-  deliveryAgentId: { type: Schema.Types.ObjectId, ref: 'User' },
+  deliveryAgentId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   status: {
     type: String,
-    enum: ['PLACED', 'ACCEPTED_BY_VENDOR', 'PREPARING', 'READY_FOR_PICKUP', 'ACCEPTED_BY_AGENT', 'PICKED_UP', 'DELIVERED', 'CANCELLED', 'REJECTED'],
-    default: 'PLACED',
-    required: true,
+    enum: [
+      'PLACED',
+      'ACCEPTED_BY_VENDOR',
+      'PREPARING',
+      'READY_FOR_PICKUP',
+      'ACCEPTED_BY_AGENT',
+      'PICKED_UP',
+      'OUT_FOR_DELIVERY',
+      'DELIVERED',
+      'CANCELLED',
+      'REJECTED'
+    ],
+    default: 'PLACED'
   },
   deliveryAddress: { type: AddressSchema, required: true },
-  pickupAddress: { type: AddressSchema, required: true },
+  pickupAddress: { type: pickupAddressSchema, required: true },
   paymentMethod: { type: String, enum: ['cod', 'online'], required: true, default: 'cod' },
   notes: { type: String },
 }, { timestamps: true });
