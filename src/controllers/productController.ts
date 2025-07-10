@@ -3,6 +3,26 @@ import Product, { ALLOWED_CATEGORIES } from '../models/Product';
 import Store from '../models/Store';
 import { AuthRequest } from '../types/AuthRequest';
 import mongoose from 'mongoose';
+import StoreProduct from '../models/StoreProduct';
+import { isPopulatedProduct } from '../models/StoreProduct';
+
+// Fetch global product catalog (optionally filter by category/search)
+export const getCatalogProducts = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { category, search, page = 1, limit = 20 } = req.query;
+    const filter: Record<string, any> = {};
+    if (category) filter['category'] = category;
+    if (search) filter['name'] = { $regex: search, $options: 'i' };
+    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const [items, total] = await Promise.all([
+      Product.find(filter).skip(skip).limit(parseInt(limit as string)),
+      Product.countDocuments(filter)
+    ]);
+    res.json({ data: { items, total } });
+  } catch (err) {
+    next(err);
+  }
+};
 
 // Get all products (public, paginated, filterable by store/category)
 export const getAllProducts = async (req: Request, res: Response, next: NextFunction) => {
@@ -64,7 +84,7 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ message: 'Only store owners can create products.' });
     }
     const owner = req.user._id;
-    const { storeId, store, name, description, price, stock, image, category, available, unit } = req.body;
+    const { storeId, store, name, description, image, category, available, unit } = req.body;
     const resolvedStoreId = storeId || store;
     if (!resolvedStoreId || !mongoose.Types.ObjectId.isValid(resolvedStoreId)) {
       return res.status(400).json({ message: 'Invalid store ID' });
@@ -75,7 +95,8 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
     // Ensure the store belongs to this owner
     const storeDoc = await Store.findOne({ _id: resolvedStoreId, owner });
     if (!storeDoc) return res.status(403).json({ message: 'You can only add products to your own store.' });
-    const product = await Product.create({ store: resolvedStoreId, name, description, price, stock, image, category, available, unit });
+    // Only create fields that exist in Product model
+    const product = await Product.create({ name, description, image, category, available, unit });
     res.status(201).json(product);
   } catch (err) {
     res.status(500).json({ message: 'Failed to create product', error: err instanceof Error ? err.message : err });
@@ -95,14 +116,10 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
     }
     const product = await Product.findOne({ _id: id, isDeleted: false });
     if (!product) return res.status(404).json({ message: 'Product not found' });
-    // Ensure the product belongs to a store owned by this user
-    const store = await Store.findOne({ _id: product.store, owner });
-    if (!store) return res.status(403).json({ message: 'You can only update products in your own store.' });
-    const { name, description, price, stock, image, category, available } = req.body;
+    // Remove store check (Product does not have a store field)
+    const { name, description, image, category, available, unit } = req.body;
     if (name !== undefined) product.name = name;
     if (description !== undefined) product.description = description;
-    if (price !== undefined) product.price = price;
-    if (stock !== undefined) product.stock = stock;
     if (image !== undefined) product.image = image;
     if (category !== undefined) {
       if (!ALLOWED_CATEGORIES.includes(category)) {
@@ -111,6 +128,7 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
       product.category = category;
     }
     if (available !== undefined) product.available = available;
+    if (unit !== undefined) product.unit = unit;
     await product.save();
     res.json(product);
   } catch (err) {
@@ -131,9 +149,7 @@ export const deleteProduct = async (req: AuthRequest, res: Response) => {
     }
     const product = await Product.findOne({ _id: id, isDeleted: false });
     if (!product) return res.status(404).json({ message: 'Product not found' });
-    // Ensure the product belongs to a store owned by this user
-    const store = await Store.findOne({ _id: product.store, owner });
-    if (!store) return res.status(403).json({ message: 'You can only delete products in your own store.' });
+    // Remove store check (Product does not have a store field)
     product.isDeleted = true;
     await product.save();
     res.json({ success: true, data: null, error: null });
@@ -150,4 +166,58 @@ export const decrementProductStock = async (productId: string, quantity: number)
     { $inc: { stock: -quantity } },
     { new: true }
   );
+};
+
+// Example: Add or link product to store inventory
+// POST /api/v1/stores/:storeId/products
+export const addProductToStore = async (req: Request, res: Response) => {
+  const { name, description, image, category, unit, price, quantity } = req.body;
+  const { storeId } = req.params;
+  // 1. Find or create the product in the global catalog
+  let product = await Product.findOne({ name, category });
+  if (!product) {
+    product = await Product.create({ name, description, image, category, unit });
+  }
+  // 2. Create or update the store's inventory for this product
+  let storeProduct = await StoreProduct.findOne({ storeId, productId: product._id });
+  if (storeProduct) {
+    // Update price/quantity if already exists
+    storeProduct.price = price;
+    storeProduct.quantity = quantity;
+    await storeProduct.save();
+  } else {
+    storeProduct = await StoreProduct.create({
+      storeId,
+      productId: product._id,
+      price,
+      quantity,
+    });
+  }
+  res.status(201).json({ success: true, data: { product, storeProduct } });
+};
+
+// Get all available products from all stores (for grocery section)
+export const getAllAvailableStoreProducts = async (req: Request, res: Response) => {
+  try {
+    // Only include store products with quantity > 0
+    const storeProducts = await StoreProduct.find({ quantity: { $gt: 0 } }).populate('productId').exec();
+    // Use type guard to filter only valid/populated storeProducts
+    const items = storeProducts
+      .filter(isPopulatedProduct)
+      .map(sp => {
+        if (!('toObject' in sp.productId)) return null;
+        const prod = (sp.productId as any).toObject();
+        return {
+          ...prod,
+          price: sp.price,
+          quantity: sp.quantity,
+          storeId: sp.storeId,
+          storeProductId: sp._id
+        };
+      })
+      .filter(Boolean);
+    res.json({ success: true, data: { items }, error: null });
+  } catch (err: any) {
+    res.status(500).json({ success: false, data: null, error: err.message });
+  }
 };

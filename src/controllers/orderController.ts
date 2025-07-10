@@ -131,7 +131,7 @@ export default class OrderController {
   static async getAvailableOrdersForAgent(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const orders = await OrderService.getAvailableOrdersForAgent();
-      res.json({ success: true, data: orders, error: null });
+      res.json({ success: true, data: { items: orders }, error: null });
     } catch (err: any) {
       next(err);
     }

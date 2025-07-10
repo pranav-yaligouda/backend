@@ -5,11 +5,8 @@ export const ALLOWED_CATEGORIES = [
 ];
 
 export interface IProduct extends Document {
-  store: mongoose.Types.ObjectId;
   name: string;
   description?: string;
-  price: number;
-  stock: number;
   image?: string;
   category: string;
   available: boolean;
@@ -20,11 +17,8 @@ export interface IProduct extends Document {
 }
 
 const ProductSchema = new Schema<IProduct>({
-  store: { type: Schema.Types.ObjectId, ref: 'Store', required: true },
   name: { type: String, required: true },
   description: { type: String },
-  price: { type: Number, required: true, min: 0 },
-  stock: { type: Number, required: true, min: 0 },
   image: { type: String },
   category: { type: String, required: true, enum: ALLOWED_CATEGORIES },
   available: { type: Boolean, default: true },
@@ -34,8 +28,8 @@ const ProductSchema = new Schema<IProduct>({
   timestamps: true
 });
 
-// Unique product name per store
-ProductSchema.index({ store: 1, name: 1 }, { unique: true });
+// Unique product name per category
+ProductSchema.index({ category: 1, name: 1 }, { unique: true });
 
 // Only return non-deleted products by default
 ProductSchema.pre(/^find/, function (this: Query<any, any>, next) {

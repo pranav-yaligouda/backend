@@ -23,6 +23,11 @@ export const orderQuerySchema = z.object({
 
 import ProductModel from '../models/Product';
 
+// Add a type guard for stock
+function hasStock(product: any): product is { stock: number } {
+  return product && typeof product === 'object' && 'stock' in product && typeof product.stock === 'number';
+}
+
 export const orderCreateSchema = z.object({
   businessType: z.enum(['hotel', 'store']),
   businessId: z.string(),
@@ -61,13 +66,15 @@ export const orderCreateSchema = z.object({
             message: `Product not found or unavailable: ${item.name}`,
             path: ['items', i, 'itemId']
           });
-        } else if (item.quantity > product.stock) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Insufficient stock for product: ${product.name}`,
-            path: ['items', i, 'quantity']
-          });
         }
+        // TODO: If you want to check store inventory, check StoreProduct.quantity here.
+        // else if (item.quantity > product.stock) {
+        //   ctx.addIssue({
+        //     code: z.ZodIssueCode.custom,
+        //     message: `Insufficient stock for product: ${product.name}`,
+        //     path: ['items', i, 'quantity']
+        //   });
+        // }
       }
     }
   }

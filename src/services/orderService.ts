@@ -11,6 +11,36 @@ export const setSocketIoInstance = (ioInstance: any) => {
   io = ioInstance;
 };
 
+// Add a type guard for stock
+function hasStock(product: any): product is { stock: number } {
+  return product && typeof product === 'object' && 'stock' in product && typeof product.stock === 'number';
+}
+
+// Utility: robust ObjectId casting
+function toObjectId(id: any): mongoose.Types.ObjectId {
+  if (!id) throw new Error('Missing ID');
+  if (typeof id === 'string') {
+    const trimmed = id.trim();
+    if (!/^[a-fA-F0-9]{24}$/.test(trimmed)) throw new Error('Invalid ObjectId string: ' + id);
+    return new mongoose.Types.ObjectId(trimmed);
+  }
+  if (id instanceof mongoose.Types.ObjectId) return id;
+  throw new Error('Invalid ID type: ' + id);
+}
+
+// Add these helper functions at the top (after imports):
+async function isHotelManager(userId: string, hotelId: string) {
+  const Hotel = require('../models/Hotel').default;
+  const hotel = await Hotel.findOne({ _id: hotelId, manager: userId });
+  return !!hotel;
+}
+
+async function isStoreOwner(userId: string, storeId: string) {
+  const Store = require('../models/Store').default;
+  const store = await Store.findOne({ _id: storeId, owner: userId });
+  return !!store;
+}
+
 export default class OrderService {
   // Create a new order
   static async createOrder(orderData: Partial<IOrder>): Promise<IOrder> {
@@ -21,16 +51,38 @@ export default class OrderService {
       try {
         for (const item of orderData.items) {
           if (item.type !== 'product') continue;
-          const product = await Product.findById(item.itemId).session(session);
-          if (!product || !product.available) {
-            throw new Error(`Product not found or unavailable: ${item.name}`);
+          // Defensive: Check for valid IDs
+          if (!item.itemId || !orderData.businessId) {
+            throw new Error(`Missing product or store ID for item: ${item.name}`);
           }
-          if (item.quantity > product.stock) {
-            throw new Error(`Insufficient stock for product: ${product.name}`);
+          let productId, storeId;
+          try {
+            productId = toObjectId(item.itemId);
+            storeId = toObjectId(orderData.businessId);
+          } catch (e) {
+            // Log for debugging
+            console.error('[OrderService] Invalid ObjectId for product or store:', item.itemId, orderData.businessId, 'Type:', typeof item.itemId, typeof orderData.businessId);
+            throw new Error(`Invalid ObjectId for product or store: ${item.itemId}, ${orderData.businessId}`);
+          }
+          // Find the store's inventory for this product
+          const storeProduct = await require('../models/StoreProduct').default.findOne({
+            productId,
+            storeId
+          }).session(session);
+          if (!storeProduct || typeof storeProduct.quantity !== 'number' || storeProduct.quantity < item.quantity) {
+            // Log for debugging
+            console.error('[OrderService] StoreProduct not found or insufficient stock:', {
+              productId: item.itemId,
+              storeId: orderData.businessId,
+              found: !!storeProduct,
+              quantity: storeProduct ? storeProduct.quantity : null,
+              required: item.quantity
+            });
+            throw new Error(`Product stock information missing for: ${item.name}`);
           }
           // Decrement stock
-          product.stock -= item.quantity;
-          await product.save({ session });
+          storeProduct.quantity -= item.quantity;
+          await storeProduct.save({ session });
         }
         const [order] = await Order.create([orderData], { session });
         if (!order) throw new Error('Order creation failed');
@@ -128,6 +180,10 @@ export default class OrderService {
           const populatedItems = await Promise.all(order.items.map(async (item: any) => {
             if (item.type === 'product') {
               const product = await Product.findById(item.itemId);
+              if (!hasStock(product)) {
+                logger.warn(`Product stock information missing for item: ${item.name}`);
+                return { ...item, product: null }; // Return item with no product
+              }
               // Type guard for toObject
               const plainItem = typeof item.toObject === 'function' ? item.toObject() : { ...item };
               return { ...plainItem, product };
@@ -160,6 +216,10 @@ export default class OrderService {
         const populatedItems = await Promise.all(order.items.map(async (item: any) => {
           if (item.type === 'product') {
             const product = await Product.findById(item.itemId);
+            if (!hasStock(product)) {
+              logger.warn(`Product stock information missing for item: ${item.name}`);
+              return { ...item, product: null }; // Return item with no product
+            }
             const plainItem = typeof item.toObject === 'function' ? item.toObject() : { ...item };
             return { ...plainItem, product };
           }
@@ -184,8 +244,18 @@ export default class OrderService {
     // Role and status transition validation
     switch (newStatus) {
       case 'ACCEPTED_BY_VENDOR':
-        if (['hotel_manager', 'store_owner'].includes(user.role) && String(order.businessId) === String(user._id) && order.status === 'PLACED') {
+        if (
+          order.status === 'PLACED' &&
+          (
+            (user.role === 'hotel_manager' && await isHotelManager(user._id, String(order.businessId))) ||
+            (user.role === 'store_owner' && await isStoreOwner(user._id, String(order.businessId)))
+          )
+        ) {
           order.status = 'ACCEPTED_BY_VENDOR';
+          // Emit to all online, verified delivery agents
+          if (io) {
+            io.to('delivery_agents_online').emit('order:new', order);
+          }
         } else {
           throw new Error('Unauthorized or invalid status transition');
         }
@@ -248,6 +318,12 @@ export default class OrderService {
 
   // Get available orders for delivery agents (not yet accepted)
   static async getAvailableOrdersForAgent(): Promise<IOrder[]> {
-    return Order.find({ status: 'ACCEPTED_BY_VENDOR', deliveryAgentId: { $exists: false } }).sort({ createdAt: -1 });
+    return Order.find({
+      status: 'ACCEPTED_BY_VENDOR',
+      $or: [
+        { deliveryAgentId: null },
+        { deliveryAgentId: { $exists: false } }
+      ]
+    }).sort({ createdAt: -1 });
   }
 }

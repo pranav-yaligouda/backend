@@ -20,5 +20,9 @@ router.delete('/me', authenticate, deleteMyStore);
 router.get('/', getAllStores);
 router.get('/:id', getStoreById);
 router.post('/', authenticate, validateStore, createStore);
+// Add product to store inventory
+router.post('/:storeId/products', require('./../controllers/storeController').addProductToStore);
+// Fetch store inventory
+router.get('/:storeId/products', require('./../controllers/storeController').getStoreProducts);
 
 export default router;

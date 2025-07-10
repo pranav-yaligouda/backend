@@ -3,6 +3,9 @@ import Store from '../models/Store';
 import User from '../models/User';
 import { AuthRequest } from '../types/AuthRequest';
 import mongoose from 'mongoose';
+import StoreProduct from '../models/StoreProduct';
+import Product from '../models/Product';
+import { isPopulatedProduct } from '../models/StoreProduct';
 
 // Get all stores (public, paginated)
 export const getAllStores = async (req: Request, res: Response, next: NextFunction) => {
@@ -187,5 +190,56 @@ export const deleteMyStore = async (req: AuthRequest, res: Response) => {
     res.json({ success: true, data: null, error: null });
   } catch (err) {
     res.status(500).json({ message: 'Failed to delete store', error: err instanceof Error ? err.message : err });
+  }
+};
+
+export const addProductToStore = async (req: Request, res: Response) => {
+  try {
+    const { storeId } = req.params;
+    const { name, category, unit, price, quantity } = req.body;
+    if (!name || !category || !unit || price == null || quantity == null) {
+      return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+    // Find or create the product in the catalog
+    let product = await Product.findOne({ name, category, unit });
+    if (!product) {
+      product = await Product.create({ name, category, unit, available: true });
+    }
+    // Add to store inventory (or update if exists)
+    let storeProduct = await StoreProduct.findOneAndUpdate(
+      { storeId, productId: product._id },
+      { price, quantity },
+      { new: true, upsert: true }
+    );
+    res.status(201).json({ success: true, data: storeProduct });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const getStoreProducts = async (req: Request, res: Response) => {
+  try {
+    const { storeId } = req.params;
+    const { category } = req.query;
+    // Fetch store products and populate product details
+    const storeProducts = await StoreProduct.find({ storeId }).populate('productId').exec();
+    // Use type guard to filter only valid/populated storeProducts
+    const items = storeProducts
+      .filter(isPopulatedProduct)
+      .filter(sp => !category || (isPopulatedProduct(sp) && sp.productId.category === category))
+      .map(sp => {
+        if (!('toObject' in sp.productId)) return null;
+        const prod = (sp.productId as any).toObject();
+        return {
+          ...prod,
+          price: sp.price,
+          quantity: sp.quantity,
+          storeProductId: sp._id
+        };
+      })
+      .filter(Boolean);
+    res.json({ success: true, data: { items }, error: null });
+  } catch (err: any) {
+    res.status(500).json({ success: false, data: null, error: err.message });
   }
 };
