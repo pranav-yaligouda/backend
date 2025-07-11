@@ -197,8 +197,20 @@ export const getAllDishes = async (req: Request, res: Response) => {
     // Attach hotelName to each dish
     const items = dishes.map(dish => ({
       ...dish,
-      hotelName: dish.hotel && typeof dish.hotel === 'object' ? dish.hotel.name : '',
-      hotelId: dish.hotel && typeof dish.hotel === 'object' ? dish.hotel._id : dish.hotel,
+      hotelName:
+        dish.hotel &&
+        typeof dish.hotel === 'object' &&
+        dish.hotel !== null &&
+        'name' in dish.hotel
+          ? (dish.hotel as any).name
+          : '',
+      hotelId:
+        dish.hotel &&
+        typeof dish.hotel === 'object' &&
+        dish.hotel !== null &&
+        '_id' in dish.hotel
+          ? (dish.hotel as any)._id
+          : dish.hotel,
     }));
     res.json({
       success: true,
