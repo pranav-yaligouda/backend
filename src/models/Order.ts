@@ -29,6 +29,7 @@ export interface IOrder extends Document {
   customerId: mongoose.Types.ObjectId;
   deliveryAgentId?: mongoose.Types.ObjectId;
   status: OrderStatus;
+  verificationPin?: string; // PIN for pickup verification
   deliveryAddress: {
     addressLine: string;
     coordinates: { lat: number; lng: number };
@@ -65,6 +66,7 @@ const AddressSchema = new Schema({
  * Only vendors can move through PLACED, ACCEPTED_BY_VENDOR, PREPARING, READY_FOR_PICKUP.
  * Only agents can move through ACCEPTED_BY_AGENT, PICKED_UP, OUT_FOR_DELIVERY, DELIVERED.
  * deliveryAgentId is set only at ACCEPTED_BY_AGENT.
+ * verificationPin is generated when order reaches READY_FOR_PICKUP and used for pickup verification.
  * pickupAddress: { addressLine: string, coordinates: { lat: number, lng: number } }
  */
 const pickupAddressSchema = new Schema({
@@ -97,11 +99,21 @@ const OrderSchema = new Schema<IOrder>({
     ],
     default: 'PLACED'
   },
+  verificationPin: { type: String, default: null }, // PIN for pickup verification
   deliveryAddress: { type: AddressSchema, required: true },
   pickupAddress: { type: pickupAddressSchema, required: true },
   paymentMethod: { type: String, enum: ['cod', 'online'], required: true, default: 'cod' },
   notes: { type: String },
 }, { timestamps: true });
+
+// Generate verification PIN when order reaches READY_FOR_PICKUP
+OrderSchema.pre('save', function(next) {
+  if (this.isModified('status') && this.status === 'READY_FOR_PICKUP' && !this.verificationPin) {
+    // Generate a 4-digit PIN
+    this.verificationPin = Math.floor(1000 + Math.random() * 9000).toString();
+  }
+  next();
+});
 
 const Order = mongoose.model<IOrder>('Order', OrderSchema);
 export default Order; 

@@ -84,6 +84,7 @@ export const orderCreateSchema = z.object({
 // PLACED -> ACCEPTED_BY_VENDOR -> PREPARING -> READY_FOR_PICKUP -> ACCEPTED_BY_AGENT -> PICKED_UP -> OUT_FOR_DELIVERY -> DELIVERED
 // Only vendors can move through PLACED, ACCEPTED_BY_VENDOR, PREPARING, READY_FOR_PICKUP.
 // Only agents can move through ACCEPTED_BY_AGENT, PICKED_UP, OUT_FOR_DELIVERY, DELIVERED.
+// PICKED_UP status requires PIN verification via separate endpoint.
 export const orderStatusSchema = z.object({
   status: z.enum([
     'PLACED',
@@ -91,10 +92,15 @@ export const orderStatusSchema = z.object({
     'PREPARING',
     'READY_FOR_PICKUP',
     'ACCEPTED_BY_AGENT',
-    'PICKED_UP',
     'OUT_FOR_DELIVERY',
     'DELIVERED',
     'CANCELLED',
     'REJECTED',
-  ]),
+  ]), // Note: PICKED_UP is handled via separate PIN verification endpoint
+});
+
+// PIN verification schema for pickup
+export const orderPickupSchema = z.object({
+  pin: z.string().length(4, { message: 'PIN must be exactly 4 digits' })
+    .regex(/^\d{4}$/, { message: 'PIN must contain only digits' }),
 });

@@ -16,10 +16,16 @@ router.get('/', authenticate, validateQuery(orderQuerySchema), (req, res, next) 
 // Get a single order by ID
 router.get('/:id', authenticate, (req, res, next) => OrderController.getOrderById(req as any, res, next));
 
-// Update order status (vendor/agent)
+// Update order status (vendor/agent) - Note: PICKED_UP is handled via separate pickup endpoint
 router.patch('/:id/status', authenticate, (req, res, next) => OrderController.updateOrderStatus(req as any, res, next));
+
+// Verify pickup with PIN and update status to PICKED_UP (delivery agent only)
+router.post('/:id/pickup', authenticate, (req, res, next) => OrderController.verifyOrderPickup(req as any, res, next));
 
 // Get available orders for delivery agents
 router.get('/available/agent', authenticate, (req, res, next) => OrderController.getAvailableOrdersForAgent(req as any, res, next));
+
+// Get orders assigned to the current delivery agent
+router.get('/agent/orders', authenticate, (req, res, next) => OrderController.getOrdersForAgent(req as any, res, next));
 
 export default router; 
