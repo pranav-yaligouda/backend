@@ -13,18 +13,24 @@ import { createUser, findUserByPhone, findUserByPhoneOrEmail } from '../services
 const JWT_ACCESS_TOKEN_EXPIRY = process.env.JWT_ACCESS_TOKEN_EXPIRY || '86400'; // 1 day default
 const JWT_REFRESH_TOKEN_EXPIRY = process.env.JWT_REFRESH_TOKEN_EXPIRY || '604800'; // 7 days default
 
+// Helper function to parse expiresIn
+const parseExpiresIn = (value: string | undefined) => {
+  if (!value) return undefined;
+  return isNaN(Number(value)) ? value : Number(value);
+};
+
 // Helper function to generate tokens
 const generateTokens = (userId: string, role: string) => {
   const accessToken = jwt.sign(
     { id: userId, role, type: 'access' }, 
     process.env.JWT_SECRET!, 
-    { expiresIn: `${JWT_ACCESS_TOKEN_EXPIRY}s` }
+    { expiresIn: parseExpiresIn(JWT_ACCESS_TOKEN_EXPIRY) }
   );
   
   const refreshToken = jwt.sign(
     { id: userId, role, type: 'refresh' }, 
     process.env.JWT_SECRET!, 
-    { expiresIn: `${JWT_REFRESH_TOKEN_EXPIRY}s` }
+    { expiresIn: parseExpiresIn(JWT_REFRESH_TOKEN_EXPIRY) }
   );
   
   return { accessToken, refreshToken };
@@ -176,7 +182,7 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
     const accessToken = jwt.sign(
       { id: decoded.id, role: decoded.role, type: 'access' }, 
       process.env.JWT_SECRET!, 
-      { expiresIn: `${JWT_ACCESS_TOKEN_EXPIRY}s` }
+      { expiresIn: parseExpiresIn(JWT_ACCESS_TOKEN_EXPIRY) }
     );
     
     res.json({ 
