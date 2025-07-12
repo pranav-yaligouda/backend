@@ -41,6 +41,69 @@ async function isStoreOwner(userId: string, storeId: string) {
   return !!store;
 }
 
+// Generate optimized route for an order
+async function generateOptimizedRoute(order: IOrder): Promise<any> {
+  try {
+    if (order.businessType === 'store') {
+      // For store orders, create a simple route from store to customer
+      const Store = require('../models/Store').default;
+      const store = await Store.findById(order.businessId);
+      
+      if (!store) {
+        throw new Error('Store not found');
+      }
+
+      // Get store location
+      let storeLocation = { lat: 0, lng: 0 };
+      if (store.location?.coordinates && Array.isArray(store.location.coordinates) && store.location.coordinates.length === 2) {
+        storeLocation = {
+          lat: store.location.coordinates[1],
+          lng: store.location.coordinates[0],
+        };
+      }
+
+      // Create optimized route structure
+      const optimizedRoute = {
+        storePickups: [{
+          storeId: order.businessId,
+          storeName: store.name || 'Store',
+          location: storeLocation,
+          items: order.items.map(item => item.itemId)
+        }],
+        customerDropoff: {
+          address: order.deliveryAddress.addressLine,
+          location: order.deliveryAddress.coordinates
+        },
+        estimatedDistance: 0, // Will be calculated by Google Maps API
+        estimatedDuration: 0  // Will be calculated by Google Maps API
+      };
+
+      return optimizedRoute;
+    } else {
+      // For hotel orders, use pickup address
+      const optimizedRoute = {
+        storePickups: [{
+          storeId: order.businessId,
+          storeName: 'Hotel',
+          location: order.pickupAddress.coordinates,
+          items: order.items.map(item => item.itemId)
+        }],
+        customerDropoff: {
+          address: order.deliveryAddress.addressLine,
+          location: order.deliveryAddress.coordinates
+        },
+        estimatedDistance: 0,
+        estimatedDuration: 0
+      };
+
+      return optimizedRoute;
+    }
+  } catch (error) {
+    console.error('Error generating optimized route:', error);
+    return null;
+  }
+}
+
 export default class OrderService {
   // Create a new order
   static async createOrder(orderData: Partial<IOrder>): Promise<IOrder> {
@@ -107,6 +170,14 @@ export default class OrderService {
         }
         const [order] = await Order.create([orderData], { session });
         if (!order) throw new Error('Order creation failed');
+        
+        // Generate optimized route for the order
+        const optimizedRoute = await generateOptimizedRoute(order);
+        if (optimizedRoute) {
+          order.optimizedRoute = optimizedRoute;
+          await order.save({ session });
+        }
+        
         await session.commitTransaction();
         // Emit real-time event to store owner
         if (io) {
@@ -122,6 +193,14 @@ export default class OrderService {
     } else {
       // Hotel/dish order (legacy logic)
       const order = await Order.create(orderData);
+      
+      // Generate optimized route for hotel orders too
+      const optimizedRoute = await generateOptimizedRoute(order);
+      if (optimizedRoute) {
+        order.optimizedRoute = optimizedRoute;
+        await order.save();
+      }
+      
       if (io) {
         io.to(String(order.businessId)).emit('order:new', order);
       }
@@ -422,9 +501,71 @@ export default class OrderService {
 
   // Get orders assigned to a specific delivery agent
   static async getOrdersForAgent(agentId: string): Promise<IOrder[]> {
-    return Order.find({
-      deliveryAgentId: agentId,
-      status: { $in: ['ACCEPTED_BY_AGENT', 'PICKED_UP', 'OUT_FOR_DELIVERY'] }
-    }).sort({ createdAt: -1 });
+    try {
+      const orders = await Order.find({ deliveryAgentId: agentId })
+        .sort({ createdAt: -1 })
+        .populate('customerId', 'name email phone')
+        .populate('businessId', 'name address');
+
+      // Populate product details for product order items
+      const populatedOrders = await Promise.all(
+        orders.map(async (order: any) => {
+          if (order.businessType === 'store' && Array.isArray(order.items)) {
+            const populatedItems = await Promise.all(
+              order.items.map(async (item: any) => {
+                if (item.type === 'product') {
+                  const product = await Product.findById(item.itemId).select('name description images');
+                  return {
+                    ...item.toObject(),
+                    productDetails: product
+                  };
+                }
+                return item;
+              })
+            );
+            order.items = populatedItems;
+          }
+          return order;
+        })
+      );
+
+      return populatedOrders;
+    } catch (error) {
+      logger.error('Error getting orders for agent:', error);
+      throw error;
+    }
+  }
+
+  // Update optimized route for an order with real-time delivery agent location
+  static async updateOrderRoute(orderId: string, agentId: string, agentLocation: { lat: number; lng: number }): Promise<IOrder | null> {
+    try {
+      const order = await Order.findOne({ _id: orderId, deliveryAgentId: agentId });
+      if (!order) {
+        return null;
+      }
+
+      // Update the optimized route with agent's current location
+      if (order.optimizedRoute && order.optimizedRoute.storePickups && order.optimizedRoute.storePickups.length > 0) {
+        // Update the first store pickup to start from agent's current location
+        order.optimizedRoute.storePickups[0].location = agentLocation;
+        
+        // Recalculate estimated distance and duration (simplified calculation)
+        const customerLocation = order.optimizedRoute.customerDropoff.location;
+        const distance = Math.sqrt(
+          Math.pow(agentLocation.lat - customerLocation.lat, 2) + 
+          Math.pow(agentLocation.lng - customerLocation.lng, 2)
+        ) * 111; // Rough conversion to km
+        
+        order.optimizedRoute.estimatedDistance = Math.round(distance * 100) / 100;
+        order.optimizedRoute.estimatedDuration = Math.round(distance * 3); // Rough estimate: 3 minutes per km
+        
+        await order.save();
+      }
+
+      return order;
+    } catch (error) {
+      logger.error('Error updating order route:', error);
+      throw error;
+    }
   }
 }

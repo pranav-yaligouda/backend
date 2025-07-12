@@ -146,6 +146,29 @@ export default class OrderController {
   }
 
   /**
+   * Update optimized route for an order with real-time delivery agent location.
+   * Requires authentication (delivery agent role).
+   */
+  static async updateOrderRoute(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user || req.user.role !== 'delivery_agent') {
+        return res.status(401).json({ success: false, data: null, error: 'Unauthorized - Delivery agent only' });
+      }
+      
+      const { agentLocation } = req.body;
+      if (!agentLocation || !agentLocation.lat || !agentLocation.lng) {
+        return res.status(400).json({ success: false, data: null, error: 'Agent location is required' });
+      }
+      
+      const order = await OrderService.updateOrderRoute(req.params.id, req.user._id, agentLocation);
+      if (!order) return res.status(404).json({ success: false, data: null, error: 'Order not found or access denied' });
+      res.json({ success: true, data: order, error: null });
+    } catch (err: any) {
+      next(err);
+    }
+  }
+
+  /**
    * Get available orders for delivery agents.
    * Requires authentication (delivery agent role).
    */

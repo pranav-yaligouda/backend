@@ -30,6 +30,20 @@ export interface IOrder extends Document {
   deliveryAgentId?: mongoose.Types.ObjectId;
   status: OrderStatus;
   verificationPin?: string; // PIN for pickup verification
+  optimizedRoute?: {
+    storePickups: Array<{
+      storeId: mongoose.Types.ObjectId;
+      storeName: string;
+      location: { lat: number; lng: number };
+      items: mongoose.Types.ObjectId[];
+    }>;
+    customerDropoff: {
+      address: string;
+      location: { lat: number; lng: number };
+    };
+    estimatedDistance?: number;
+    estimatedDuration?: number;
+  };
   deliveryAddress: {
     addressLine: string;
     coordinates: { lat: number; lng: number };
@@ -59,6 +73,31 @@ const AddressSchema = new Schema({
     lng: { type: Number, required: true },
   },
 });
+
+const StorePickupSchema = new Schema({
+  storeId: { type: Schema.Types.ObjectId, required: true },
+  storeName: { type: String, required: true },
+  location: {
+    lat: { type: Number, required: true },
+    lng: { type: Number, required: true },
+  },
+  items: [{ type: Schema.Types.ObjectId }],
+}, { _id: false });
+
+const CustomerDropoffSchema = new Schema({
+  address: { type: String, required: true },
+  location: {
+    lat: { type: Number, required: true },
+    lng: { type: Number, required: true },
+  },
+}, { _id: false });
+
+const OptimizedRouteSchema = new Schema({
+  storePickups: [StorePickupSchema],
+  customerDropoff: CustomerDropoffSchema,
+  estimatedDistance: { type: Number },
+  estimatedDuration: { type: Number },
+}, { _id: false });
 
 /**
  * Order Status Flow:
@@ -100,6 +139,7 @@ const OrderSchema = new Schema<IOrder>({
     default: 'PLACED'
   },
   verificationPin: { type: String, default: null }, // PIN for pickup verification
+  optimizedRoute: { type: OptimizedRouteSchema, default: null },
   deliveryAddress: { type: AddressSchema, required: true },
   pickupAddress: { type: pickupAddressSchema, required: true },
   paymentMethod: { type: String, enum: ['cod', 'online'], required: true, default: 'cod' },
