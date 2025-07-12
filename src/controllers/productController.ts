@@ -199,24 +199,61 @@ export const addProductToStore = async (req: Request, res: Response) => {
 // Get all available products from all stores (for grocery section)
 export const getAllAvailableStoreProducts = async (req: Request, res: Response) => {
   try {
-    // Only include store products with quantity > 0
-    const storeProducts = await StoreProduct.find({ quantity: { $gt: 0 } }).populate('productId').exec();
+    const { storeId, category, search, page = 1, limit = 20 } = req.query;
+    const filter: any = { quantity: { $gt: 0 } };
+    if (storeId && typeof storeId === 'string') filter.storeId = storeId;
+    // Find all store products with quantity > 0, and populate product details
+    let query = StoreProduct.find(filter).populate('productId');
+    // Pagination
+    const skip = (Number(page) - 1) * Number(limit);
+    query = query.skip(skip).limit(Number(limit));
+    let storeProducts = await query.exec();
     // Use type guard to filter only valid/populated storeProducts
-    const items = storeProducts
-      .filter(isPopulatedProduct)
+    let items = storeProducts.filter(isPopulatedProduct);
+    // Category and search filtering (on populated product)
+    if (category && typeof category === 'string') {
+      items = items.filter(sp => {
+        if (!isPopulatedProduct(sp)) return false;
+        return sp.productId.category === category;
+      });
+    }
+    if (search && typeof search === 'string') {
+      const searchLower = search.toLowerCase();
+      items = items.filter(sp => {
+        if (!isPopulatedProduct(sp)) return false;
+        const { name, description } = sp.productId;
+        return (
+          (name && name.toLowerCase().includes(searchLower)) ||
+          (description && description.toLowerCase().includes(searchLower))
+        );
+      });
+    }
+    // Map to frontend shape
+    const mapped = items
+      .filter(sp => isPopulatedProduct(sp))
       .map(sp => {
-        if (!('toObject' in sp.productId)) return null;
-        const prod = (sp.productId as any).toObject();
+        const prod = sp.productId;
         return {
-          ...prod,
+          ...prod.toObject(),
           price: sp.price,
           quantity: sp.quantity,
           storeId: sp.storeId,
           storeProductId: sp._id
         };
-      })
-      .filter(Boolean);
-    res.json({ success: true, data: { items }, error: null });
+      });
+    // Pagination for filtered results
+    const paged = mapped.slice(0, Number(limit));
+    res.json({
+      success: true,
+      data: {
+        items: paged,
+        page: Number(page),
+        limit: Number(limit),
+        totalItems: mapped.length,
+        totalPages: Math.ceil(mapped.length / Number(limit))
+      },
+      error: null
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, data: null, error: err.message });
   }
