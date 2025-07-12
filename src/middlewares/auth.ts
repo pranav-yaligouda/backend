@@ -13,11 +13,19 @@ export default function authenticateToken(req: Request, res: Response, next: Nex
     console.error(`[authMiddleware] ${req.method} ${req.originalUrl} - No token provided`);
     return res.status(401).json({ error: 'No token provided' });
   }
+  
   jwt.verify(token, process.env.JWT_SECRET!, (err: any, user: any) => {
     if (err) {
       console.log('[authMiddleware] Invalid token:', err);
       return res.status(403).json({ error: 'Invalid token' });
     }
+    
+    // Validate token type (should be access token)
+    if (user.type && user.type !== 'access') {
+      console.log('[authMiddleware] Invalid token type:', user.type);
+      return res.status(403).json({ error: 'Invalid token type' });
+    }
+    
     // Always set req.user as object with _id
     let userObj: any = user;
     if (typeof user === 'string') {

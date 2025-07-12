@@ -36,5 +36,98 @@ const UserSchema: Schema = new Schema<IUser>({
   lastOnlineAt: { type: Date },
 }, { timestamps: true });
 
+// ========================================
+// PRODUCTION DATABASE INDEXES
+// ========================================
+
+// Role-based query optimization
+UserSchema.index({ role: 1, createdAt: -1 }); // Users by role
+UserSchema.index({ role: 1, isOnline: 1 }); // Online users by role
+
+// Delivery agent specific indexes
+UserSchema.index({ 
+  role: 1, 
+  verificationStatus: 1, 
+  isOnline: 1 
+}); // Available delivery agents
+
+UserSchema.index({ 
+  role: 1, 
+  verificationStatus: 1, 
+  isOnline: 1, 
+  lastOnlineAt: -1 
+}); // Online verified agents with last activity
+
+UserSchema.index({ 
+  driverLicenseNumber: 1 
+}, { 
+  sparse: true,
+  name: 'driver_license_index'
+}); // Driver license lookup
+
+UserSchema.index({ 
+  vehicleRegistrationNumber: 1 
+}, { 
+  sparse: true,
+  name: 'vehicle_registration_index'
+}); // Vehicle registration lookup
+
+// Business owner indexes
+UserSchema.index({ 
+  role: 1, 
+  storeName: 1 
+}, { 
+  sparse: true,
+  name: 'store_owner_index'
+}); // Store owners
+
+UserSchema.index({ 
+  role: 1, 
+  hotelName: 1 
+}, { 
+  sparse: true,
+  name: 'hotel_manager_index'
+}); // Hotel managers
+
+// Verification status indexes
+UserSchema.index({ 
+  verificationStatus: 1, 
+  role: 1 
+}); // Verification status by role
+
+UserSchema.index({ 
+  verificationStatus: 1, 
+  createdAt: -1 
+}); // Verification requests by date
+
+// Online status tracking
+UserSchema.index({ 
+  isOnline: 1, 
+  lastOnlineAt: -1 
+}); // Online users with last activity
+
+UserSchema.index({ 
+  role: 1, 
+  isOnline: 1, 
+  lastOnlineAt: -1 
+}); // Online users by role with activity
+
+// Date-based queries
+UserSchema.index({ createdAt: -1 }); // User registration date
+UserSchema.index({ updatedAt: -1 }); // User update tracking
+
+// Text search for name (if needed)
+UserSchema.index({ name: 'text' }, { 
+  weights: { name: 10 },
+  name: 'user_name_text_index'
+});
+
+// Compound indexes for complex queries
+UserSchema.index({ 
+  role: 1, 
+  createdAt: -1, 
+  isOnline: 1 
+}); // Role-based user analytics
+
 const User = mongoose.model<IUser>('User', UserSchema);
 export default User;

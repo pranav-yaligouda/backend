@@ -10,6 +10,7 @@ import morgan from 'morgan';
 import path from 'path';
 import rateLimit from 'express-rate-limit';
 import swaggerUi from 'swagger-ui-express';
+import cookieParser from 'cookie-parser';
 import { cleanEnv, port, str } from 'envalid';
 
 // Import API routes and middlewares
@@ -83,9 +84,11 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // ------------------------------
-// Body Parsing
+// Body Parsing & Cookies
 // ------------------------------
 app.use(express.json({ limit: '4mb' }));
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // ------------------------------
 // API Documentation

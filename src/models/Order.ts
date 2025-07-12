@@ -155,5 +155,66 @@ OrderSchema.pre('save', function(next) {
   next();
 });
 
+// ========================================
+// PRODUCTION DATABASE INDEXES
+// ========================================
+
+// Primary query indexes for order retrieval
+OrderSchema.index({ customerId: 1, createdAt: -1 }); // Customer order history
+OrderSchema.index({ businessId: 1, status: 1, createdAt: -1 }); // Vendor order management
+OrderSchema.index({ status: 1, createdAt: -1 }); // Order status tracking
+
+// Business type specific indexes
+OrderSchema.index({ businessType: 1, businessId: 1, status: 1 }); // Business-specific orders
+OrderSchema.index({ businessType: 1, status: 1, createdAt: -1 }); // Business type filtering
+
+// Date range query optimization
+OrderSchema.index({ createdAt: -1 }); // General date sorting
+OrderSchema.index({ updatedAt: -1 }); // Update tracking
+
+// Status-specific indexes for common queries
+OrderSchema.index({ status: 1, businessId: 1 }); // Status by business
+
+// Payment method indexing
+OrderSchema.index({ paymentMethod: 1, createdAt: -1 }); // Payment analytics
+
+// Verification PIN indexing (for pickup verification)
+OrderSchema.index({ verificationPin: 1 }, { sparse: true }); // PIN lookup
+
+// Compound indexes for complex queries
+OrderSchema.index({ 
+  businessType: 1, 
+  businessId: 1, 
+  status: 1, 
+  createdAt: -1 
+}); // Business orders with status and date
+
+OrderSchema.index({ 
+  customerId: 1, 
+  status: 1, 
+  createdAt: -1 
+}); // Customer orders with status and date
+
+// Text search index for notes (if needed)
+OrderSchema.index({ notes: 'text' }, { 
+  weights: { notes: 10 },
+  name: 'order_notes_text_index'
+});
+
+// Geospatial index for delivery optimization (if using geospatial queries)
+OrderSchema.index({ 
+  'deliveryAddress.coordinates': '2dsphere' 
+}, { 
+  sparse: true,
+  name: 'delivery_address_geospatial'
+});
+
+OrderSchema.index({ 
+  'pickupAddress.coordinates': '2dsphere' 
+}, { 
+  sparse: true,
+  name: 'pickup_address_geospatial'
+});
+
 const Order = mongoose.model<IOrder>('Order', OrderSchema);
 export default Order; 
