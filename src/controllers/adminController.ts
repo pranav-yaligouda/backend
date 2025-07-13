@@ -761,6 +761,8 @@ export const getSystemHealth = async (req: Request, res: Response, next: NextFun
       data: {
         system: {
           uptime,
+          environment: process.env.NODE_ENV || 'development',
+          version: process.env.npm_package_version || '1.0.0',
           memory: {
             rss: memoryUsage.rss,
             heapTotal: memoryUsage.heapTotal,
