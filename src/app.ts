@@ -25,6 +25,7 @@ import hotelRoutes from './routes/hotelRoutes';
 import orderRoutes from './routes/orderRoutes';
 import productRoutes from './routes/productRoutes';
 import storeRoutes from './routes/storeRoutes';
+import adminRoutes from './routes/adminRoutes';
 
 // ------------------------------
 // Environment & Config
@@ -127,6 +128,7 @@ app.use('/api/v1/orders', authenticateToken, orderRoutes);
 app.use('/api/v1/agent', agentRoutes);
 app.use('/api/v1/stores', storeRoutes);
 app.use('/api/v1/products', productRoutes);
+app.use('/api/v1/admin', adminRoutes);
 
 // ------------------------------
 // Error Handling

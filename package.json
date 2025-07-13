@@ -13,7 +13,9 @@
     "db:verify-indexes": "ts-node -e \"import('./src/config/mongoose').then(m => m.optimizeDatabase())\"",
     "db:performance-test": "ts-node src/scripts/performanceTest.ts",
     "db:cleanup": "ts-node -e \"import('./src/config/mongoose').then(m => m.cleanupDatabase())\"",
-    "db:monitor": "ts-node -e \"import('./src/config/mongoose').then(m => m.monitorDatabasePerformance())\""
+    "db:monitor": "ts-node -e \"import('./src/config/mongoose').then(m => m.monitorDatabasePerformance())\"",
+    "admin:create-super": "ts-node src/scripts/createAdminUser.ts",
+    "admin:test": "ts-node src/scripts/testAdminSystem.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

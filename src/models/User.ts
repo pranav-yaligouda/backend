@@ -2,6 +2,8 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export type UserRole = 'customer' | 'hotel_manager' | 'store_owner' | 'delivery_agent' | 'admin';
 
+export type AdminRole = 'super_admin' | 'admin' | 'moderator' | 'support';
+
 export interface IUser extends Document {
   name: string;
   phone: string; // required, unique
@@ -16,6 +18,11 @@ export interface IUser extends Document {
   verificationStatus?: 'pending' | 'verified' | 'rejected';
   isOnline?: boolean;
   lastOnlineAt?: Date;
+  // Admin fields
+  adminRole?: AdminRole;
+  isActive?: boolean;
+  lastLoginAt?: Date;
+  createdBy?: string; // For admin users
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,6 +41,11 @@ const UserSchema: Schema = new Schema<IUser>({
   verificationStatus: { type: String, enum: ['pending', 'verified', 'rejected'], default: undefined },
   isOnline: { type: Boolean, default: false },
   lastOnlineAt: { type: Date },
+  // Admin fields
+  adminRole: { type: String, enum: ['super_admin', 'admin', 'moderator', 'support'], default: undefined },
+  isActive: { type: Boolean, default: true },
+  lastLoginAt: { type: Date },
+  createdBy: { type: String }, // For admin users
 }, { timestamps: true });
 
 // ========================================
