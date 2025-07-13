@@ -30,6 +30,7 @@ export interface IOrder extends Document {
   deliveryAgentId?: mongoose.Types.ObjectId;
   status: OrderStatus;
   verificationPin?: string; // PIN for pickup verification
+  deliveryPin?: string; // PIN for delivery verification
   optimizedRoute?: {
     storePickups: Array<{
       storeId: mongoose.Types.ObjectId;
@@ -139,6 +140,7 @@ const OrderSchema = new Schema<IOrder>({
     default: 'PLACED'
   },
   verificationPin: { type: String, default: null }, // PIN for pickup verification
+  deliveryPin: { type: String, default: null }, // PIN for delivery verification
   optimizedRoute: { type: OptimizedRouteSchema, default: null },
   deliveryAddress: { type: AddressSchema, required: true },
   pickupAddress: { type: pickupAddressSchema, required: true },
@@ -151,6 +153,10 @@ OrderSchema.pre('save', function(next) {
   if (this.isModified('status') && this.status === 'READY_FOR_PICKUP' && !this.verificationPin) {
     // Generate a 4-digit PIN
     this.verificationPin = Math.floor(1000 + Math.random() * 9000).toString();
+  }
+  // Generate delivery PIN when order reaches OUT_FOR_DELIVERY
+  if (this.isModified('status') && this.status === 'OUT_FOR_DELIVERY' && !this.deliveryPin) {
+    this.deliveryPin = Math.floor(1000 + Math.random() * 9000).toString();
   }
   next();
 });
@@ -180,6 +186,8 @@ OrderSchema.index({ paymentMethod: 1, createdAt: -1 }); // Payment analytics
 
 // Verification PIN indexing (for pickup verification)
 OrderSchema.index({ verificationPin: 1 }, { sparse: true }); // PIN lookup
+// Delivery PIN indexing (for delivery verification)
+OrderSchema.index({ deliveryPin: 1 }, { sparse: true });
 
 // Compound indexes for complex queries
 OrderSchema.index({ 

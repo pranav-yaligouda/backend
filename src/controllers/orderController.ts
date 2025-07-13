@@ -5,7 +5,7 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import OrderService from '../services/orderService';
-import { orderQuerySchema, orderCreateSchema, orderStatusSchema, orderPickupSchema } from '../validation/order';
+import { orderQuerySchema, orderCreateSchema, orderStatusSchema, orderPickupSchema, orderDeliverySchema } from '../validation/order';
 import { OrderStatus } from '../models/Order';
 import { AuthRequest } from '../types/AuthRequest';
 import mongoose from 'mongoose';
@@ -138,6 +138,27 @@ export default class OrderController {
       }
       const { pin } = parsed.data;
       const order = await OrderService.verifyOrderPickup(req.params.id, req.user, pin);
+      if (!order) return res.status(404).json({ success: false, data: null, error: 'Order not found or access denied' });
+      res.json({ success: true, data: order, error: null });
+    } catch (err: any) {
+      next(err);
+    }
+  }
+
+  /**
+   * Verify delivery with PIN and update status to DELIVERED.
+   * Requires authentication (delivery agent role).
+   */
+  static async verifyOrderDelivery(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) return res.status(401).json({ success: false, data: null, error: 'Unauthorized' });
+      // Validate body
+      const parsed = orderDeliverySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, data: null, error: parsed.error.flatten() });
+      }
+      const { pin } = parsed.data;
+      const order = await OrderService.verifyOrderDelivery(req.params.id, req.user, pin);
       if (!order) return res.status(404).json({ success: false, data: null, error: 'Order not found or access denied' });
       res.json({ success: true, data: order, error: null });
     } catch (err: any) {

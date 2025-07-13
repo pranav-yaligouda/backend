@@ -414,7 +414,8 @@ export default class OrderService {
           order.status === 'OUT_FOR_DELIVERY' &&
           String(order.deliveryAgentId) === String(user._id)
         ) {
-          order.status = 'DELIVERED';
+          // Prevent direct status change to DELIVERED; require delivery pin verification
+          throw new Error('Delivery must be verified with PIN');
         } else {
           throw new Error('Unauthorized or invalid status transition');
         }
@@ -483,6 +484,41 @@ export default class OrderService {
       io.to(String(order.deliveryAgentId)).emit('order:status', order);
       // Notify hotel/store about successful pickup
       io.to(String(order.businessId)).emit('order:pickup_verified', order);
+    }
+
+    return order;
+  }
+
+  // Verify delivery with PIN and update status to DELIVERED
+  static async verifyOrderDelivery(orderId: string, user: any, pin: string): Promise<IOrder | null> {
+    const order = await Order.findById(orderId);
+    if (!order) return null;
+
+    // Check if user is authorized to deliver this order
+    if (
+      user.role !== 'delivery_agent' ||
+      order.status !== 'OUT_FOR_DELIVERY' ||
+      String(order.deliveryAgentId) !== String(user._id)
+    ) {
+      throw new Error('Unauthorized or invalid delivery attempt');
+    }
+
+    // Verify delivery PIN
+    if (!order.deliveryPin || order.deliveryPin !== pin) {
+      throw new Error('Invalid delivery verification PIN');
+    }
+
+    // Update status to DELIVERED
+    order.status = 'DELIVERED';
+    await order.save();
+
+    // Emit real-time event to all involved parties
+    if (io) {
+      io.to(String(order.customerId)).emit('order:status', order);
+      io.to(String(order.businessId)).emit('order:status', order);
+      io.to(String(order.deliveryAgentId)).emit('order:status', order);
+      // Notify customer about successful delivery
+      io.to(String(order.customerId)).emit('order:delivery_verified', order);
     }
 
     return order;

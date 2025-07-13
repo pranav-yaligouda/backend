@@ -102,5 +102,11 @@ export const orderStatusSchema = z.object({
 // PIN verification schema for pickup
 export const orderPickupSchema = z.object({
   pin: z.string().length(4, { message: 'PIN must be exactly 4 digits' })
-    .regex(/^\d{4}$/, { message: 'PIN must contain only digits' }),
+    .regex(/^[0-9]{4}$/, { message: 'PIN must contain only digits' }),
+});
+
+// PIN verification schema for delivery
+export const orderDeliverySchema = z.object({
+  pin: z.string().length(4, { message: 'PIN must be exactly 4 digits' })
+    .regex(/^[0-9]{4}$/, { message: 'PIN must contain only digits' }),
 });

@@ -22,6 +22,9 @@ router.patch('/:id/status', authenticate, (req, res, next) => OrderController.up
 // Verify pickup with PIN and update status to PICKED_UP (delivery agent only)
 router.post('/:id/pickup', authenticate, (req, res, next) => OrderController.verifyOrderPickup(req as any, res, next));
 
+// Verify delivery with PIN and update status to DELIVERED (delivery agent only)
+router.post('/:id/deliver', authenticate, (req, res, next) => OrderController.verifyOrderDelivery(req as any, res, next));
+
 // Update optimized route with real-time delivery agent location (delivery agent only)
 router.patch('/:id/route', authenticate, (req, res, next) => OrderController.updateOrderRoute(req as any, res, next));
 
