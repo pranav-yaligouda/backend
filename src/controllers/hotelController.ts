@@ -91,6 +91,9 @@ export const createHotel = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
     const manager = req.user._id;
+    if (!mongoose.Types.ObjectId.isValid(manager)) {
+      return res.status(400).json({ message: 'Invalid manager ID' });
+    }
     const { name, timings, location, holidays, image } = req.body;
     if (image) {
       if (!isBase64Image(image)) {
@@ -101,7 +104,7 @@ export const createHotel = async (req: AuthRequest, res: Response) => {
         return res.status(400).json({ message: 'Image too large (max 4MB)' });
       }
     }
-    const existing = await Hotel.findOne({ manager });
+    const existing = await Hotel.findOne({ manager: { $eq: manager } });
     if (existing) return res.status(400).json({ message: 'Hotel already exists for this manager.' });
     const hotel = await Hotel.create({ name, image, timings, location, holidays, manager });
     res.status(201).json(hotelToJson(hotel));
