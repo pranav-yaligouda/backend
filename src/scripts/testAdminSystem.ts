@@ -7,7 +7,7 @@ import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 import User from '../models/User';
 import { AdminRole, AdminPermission } from '../middlewares/adminAuth';
-import { safeObjectId, eq, safeString, safeStringArray } from '../lib/safeQuery';
+
 
 dotenv.config();
 
