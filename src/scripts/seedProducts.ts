@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import Product, { ALLOWED_CATEGORIES } from '../models/Product';
+import { safeObjectId, eq, safeString, safeStringArray } from '../lib/safeQuery';
 
 const initialProducts = [
   // Vegetables
