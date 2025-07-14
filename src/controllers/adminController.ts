@@ -543,7 +543,22 @@ export const getAllOrders = async (req: Request, res: Response, next: NextFuncti
 export const updateOrderStatus = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const { status, notes } = req.body;
+    const updateSchema = z.object({
+      status: z.string().min(1, "Status is required"),
+      notes: z.string().optional()
+    });
+    
+    const parsedBody = updateSchema.safeParse(req.body);
+    
+    if (!parsedBody.success) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: parsedBody.error.errors.map(err => err.message)
+      });
+    }
+
+    const { status, notes } = parsedBody.data;
 
     const order = await Order.findByIdAndUpdate(
       eq(id),
