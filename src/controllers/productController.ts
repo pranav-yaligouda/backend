@@ -5,14 +5,15 @@ import { AuthRequest } from '../types/AuthRequest';
 import mongoose from 'mongoose';
 import StoreProduct from '../models/StoreProduct';
 import { isPopulatedProduct } from '../models/StoreProduct';
+import { safeObjectId, eq, safeString, safeStringArray } from '../lib/safeQuery';
 
 // Fetch global product catalog (optionally filter by category/search)
 export const getCatalogProducts = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { category, search, page = 1, limit = 20 } = req.query;
     const filter: Record<string, any> = {};
-    if (category) filter['category'] = category;
-    if (search) filter['name'] = { $regex: search, $options: 'i' };
+    if (category && typeof category === 'string') filter['category'] = eq(category);
+    if (search && typeof search === 'string') filter['name'] = { $regex: safeString(search), $options: 'i' };
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
     const [items, total] = await Promise.all([
       Product.find(filter).skip(skip).limit(parseInt(limit as string)),
@@ -31,14 +32,14 @@ export const getAllProducts = async (req: Request, res: Response, next: NextFunc
     const limit = Math.max(1, Math.min(Number(req.query.limit) || 20, 100));
     const skip = (page - 1) * limit;
     const filter: any = {};
-    if (req.query.storeId && mongoose.Types.ObjectId.isValid(req.query.storeId as string)) {
-      filter.store = req.query.storeId;
+    if (req.query.storeId && typeof req.query.storeId === 'string' && mongoose.Types.ObjectId.isValid(req.query.storeId as string)) {
+      filter.store = eq(req.query.storeId);
     }
     if (req.query.category && ALLOWED_CATEGORIES.includes(req.query.category as string)) {
-      filter.category = req.query.category;
+      filter.category = eq(req.query.category);
     }
-    if (req.query.search) {
-      filter.name = { $regex: req.query.search, $options: 'i' };
+    if (req.query.search && typeof req.query.search === 'string') {
+      filter.name = { $regex: safeString(req.query.search), $options: 'i' };
     }
     // isDeleted is filtered by model pre-hook, but ensure here for robustness
     filter.isDeleted = false;
@@ -201,7 +202,7 @@ export const getAllAvailableStoreProducts = async (req: Request, res: Response) 
   try {
     const { storeId, category, search, page = 1, limit = 20 } = req.query;
     const filter: any = { quantity: { $gt: 0 } };
-    if (storeId && typeof storeId === 'string') filter.storeId = storeId;
+    if (storeId && typeof storeId === 'string') filter.storeId = eq(storeId);
     // Find all store products with quantity > 0, and populate product details
     let query = StoreProduct.find(filter).populate('productId');
     // Pagination

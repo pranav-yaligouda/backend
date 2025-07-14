@@ -14,6 +14,7 @@ import Dish from '../models/Dish';
 import { AdminPermission, AdminRole } from '../middlewares/adminAuth';
 import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
+import { safeObjectId, eq, safeString, safeStringArray } from '../lib/safeQuery';
 
 // ========================================
 // VALIDATION SCHEMAS
@@ -64,9 +65,9 @@ export const getAllUsers = async (req: Request, res: Response, next: NextFunctio
     if (verificationStatus) query.verificationStatus = verificationStatus;
     if (search) {
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { phone: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
+        { name: { $regex: safeString(req.query.search), $options: 'i' } },
+        { phone: { $regex: safeString(req.query.search), $options: 'i' } },
+        { email: { $regex: safeString(req.query.search), $options: 'i' } }
       ];
     }
 
@@ -103,7 +104,7 @@ export const getAllUsers = async (req: Request, res: Response, next: NextFunctio
 export const getUserById = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const user = await User.findById(id).select('-password');
+    const user = await User.findById(eq(id)).select('-password');
     
     if (!user) {
       return res.status(404).json({
@@ -133,7 +134,7 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
     const updateData = userUpdateSchema.parse(req.body);
 
     const user = await User.findByIdAndUpdate(
-      id,
+      eq(id),
       { ...updateData, updatedAt: new Date() },
       { new: true, runValidators: true }
     ).select('-password');
@@ -171,7 +172,7 @@ export const deleteUser = async (req: Request, res: Response, next: NextFunction
   try {
     const { id } = req.params;
     const user = await User.findByIdAndUpdate(
-      id,
+      eq(id),
       { isActive: false, updatedAt: new Date() },
       { new: true }
     ).select('-password');
@@ -254,7 +255,7 @@ export const verifyAgent = async (req: Request, res: Response, next: NextFunctio
     }
 
     const agent = await User.findByIdAndUpdate(
-      id,
+      eq(id),
       updateData,
       { new: true, runValidators: true }
     ).select('-password');
@@ -312,8 +313,8 @@ export const getAllHotels = async (req: Request, res: Response, next: NextFuncti
     if (isApproved !== undefined) query.isApproved = isApproved === 'true';
     if (search) {
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { 'location.address': { $regex: search, $options: 'i' } }
+        { name: { $regex: safeString(req.query.search), $options: 'i' } },
+        { 'location.address': { $regex: safeString(req.query.search), $options: 'i' } }
       ];
     }
 
@@ -362,8 +363,8 @@ export const getAllStores = async (req: Request, res: Response, next: NextFuncti
     if (isApproved !== undefined) query.isApproved = isApproved === 'true';
     if (search) {
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { address: { $regex: search, $options: 'i' } }
+        { name: { $regex: safeString(req.query.search), $options: 'i' } },
+        { address: { $regex: safeString(req.query.search), $options: 'i' } }
       ];
     }
 
@@ -405,7 +406,7 @@ export const approveBusiness = async (req: Request, res: Response, next: NextFun
     let business;
     if (type === 'hotel') {
       business = await Hotel.findByIdAndUpdate(
-        id,
+        eq(id),
         { 
           isApproved, 
           rejectionReason: isApproved ? undefined : rejectionReason,
@@ -415,7 +416,7 @@ export const approveBusiness = async (req: Request, res: Response, next: NextFun
       ).populate('manager', 'name phone email');
     } else if (type === 'store') {
       business = await Store.findByIdAndUpdate(
-        id,
+        eq(id),
         { 
           isApproved, 
           rejectionReason: isApproved ? undefined : rejectionReason,
@@ -545,7 +546,7 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
     const { status, notes } = req.body;
 
     const order = await Order.findByIdAndUpdate(
-      id,
+      eq(id),
       { 
         status, 
         notes: notes ? `${notes} (Admin override)` : undefined,

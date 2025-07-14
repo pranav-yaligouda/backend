@@ -1,5 +1,6 @@
 import User from '../models/User';
 import bcrypt from 'bcryptjs';
+import { safeObjectId, eq, safeString, safeStringArray } from '../lib/safeQuery';
 
 export interface CreateUserInput {
   name: string;
@@ -20,12 +21,12 @@ export async function createUser(input: CreateUserInput) {
 }
 
 export async function findUserByPhone(phone: string) {
-  return User.findOne({ phone });
+  return User.findOne({ phone: eq(phone) });
 }
 
 export async function findUserByPhoneOrEmail(phone: string, email?: string) {
   if (email) {
-    return User.findOne({ $or: [ { phone }, { email } ] });
+    return User.findOne({ $or: [ { phone: eq(phone) }, { email: eq(email) } ] });
   }
-  return User.findOne({ phone });
+  return User.findOne({ phone: eq(phone) });
 }
