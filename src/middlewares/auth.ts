@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
 export default function authenticateToken(req: Request, res: Response, next: NextFunction) {
+  console.log('[authMiddleware] CALLED');
   const authHeader = req.headers['authorization'];
   // Log method and path for traceability
   if (process.env.NODE_ENV !== 'production') {
@@ -12,11 +13,19 @@ export default function authenticateToken(req: Request, res: Response, next: Nex
     console.error(`[authMiddleware] ${req.method} ${req.originalUrl} - No token provided`);
     return res.status(401).json({ error: 'No token provided' });
   }
+  
   jwt.verify(token, process.env.JWT_SECRET!, (err: any, user: any) => {
     if (err) {
       console.log('[authMiddleware] Invalid token:', err);
       return res.status(403).json({ error: 'Invalid token' });
     }
+    
+    // Validate token type (should be access token)
+    if (user.type && user.type !== 'access') {
+      console.log('[authMiddleware] Invalid token type:', user.type);
+      return res.status(403).json({ error: 'Invalid token type' });
+    }
+    
     // Always set req.user as object with _id
     let userObj: any = user;
     if (typeof user === 'string') {
@@ -24,14 +33,22 @@ export default function authenticateToken(req: Request, res: Response, next: Nex
         userObj = JSON.parse(user);
       } catch {}
     }
-    // For legacy tokens, support both id and _id
+    // Always ensure req.user._id and req.user.id are set and are strings
     if (userObj && userObj.id && !userObj._id) {
       userObj._id = userObj.id;
     }
+    if (userObj && userObj._id && typeof userObj._id !== 'string') {
+      userObj._id = String(userObj._id);
+    }
+    if (userObj && userObj._id && !userObj.id) {
+      userObj.id = userObj._id;
+    }
+    if (userObj && userObj.id && typeof userObj.id !== 'string') {
+      userObj.id = String(userObj.id);
+    }
     (req as any).user = userObj;
-    console.log('[authMiddleware] req.user set to:', userObj);
+    console.log('[authMiddleware] req.user set to:', userObj, 'id:', userObj.id, '_id:', userObj._id);
     next();
   });
 }
-
 

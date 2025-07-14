@@ -1,70 +1,117 @@
 {
-  "openapi": "3.0.0",
-  "info": {
-    "title": "Athani Mart API",
-    "version": "1.0.0",
-    "description": "API documentation for Athani Mart backend."
-  },
-  "servers": [
-    { "url": "http://localhost:4000/api/v1" }
-  ],
-  "paths": {
-    "/auth/register": {
-      "post": {
-        "summary": "Register a new user",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": { "type": "string" },
-                  "email": { "type": "string" },
-                  "password": { "type": "string" }
-                },
-                "required": ["name", "email", "password"]
-              }
-            }
+    "openapi": "3.0.3",
+    "info": {
+      "title": "AthaniMart API",
+      "version": "1.0.0",
+      "description": "API documentation for AthaniMart food and grocery delivery backend."
+    },
+    "servers": [
+      {
+        "url": "https://your-backend-domain.com/api/v1",
+        "description": "Production server"
+      },
+      {
+        "url": "http://localhost:4000/api/v1",
+        "description": "Local development server"
+      }
+    ],
+    "components": {
+      "securitySchemes": {
+        "bearerAuth": {
+          "type": "http",
+          "scheme": "bearer",
+          "bearerFormat": "JWT"
+        }
+      },
+      "schemas": {
+        "User": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "name": { "type": "string" },
+            "phone": { "type": "string" },
+            "email": { "type": "string" },
+            "role": { "type": "string" }
           }
         },
-        "responses": {
-          "201": { "description": "User registered" },
-          "409": { "description": "User already exists" }
+        "LoginRequest": {
+          "type": "object",
+          "properties": {
+            "phone": { "type": "string" },
+            "password": { "type": "string" }
+          },
+          "required": ["phone", "password"]
+        },
+        "LoginResponse": {
+          "type": "object",
+          "properties": {
+            "token": { "type": "string" },
+            "user": { "$ref": "#/components/schemas/User" }
+          }
         }
       }
     },
-    "/auth/login": {
-      "post": {
-        "summary": "Login user",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "email": { "type": "string" },
-                  "password": { "type": "string" }
-                },
-                "required": ["email", "password"]
+    "security": [
+      { "bearerAuth": [] }
+    ],
+    "paths": {
+      "/auth/login": {
+        "post": {
+          "summary": "User login",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LoginRequest" }
               }
             }
+          },
+          "responses": {
+            "200": {
+              "description": "Login successful",
+              "content": {
+                "application/json": {
+                  "schema": { "$ref": "#/components/schemas/LoginResponse" }
+                }
+              }
+            },
+            "401": { "description": "Invalid credentials" }
           }
-        },
-        "responses": {
-          "200": { "description": "Login successful" },
-          "401": { "description": "Invalid credentials" }
+        }
+      },
+      "/auth/register": {
+        "post": {
+          "summary": "User registration",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string" },
+                    "phone": { "type": "string" },
+                    "password": { "type": "string" },
+                    "role": { "type": "string" }
+                  },
+                  "required": ["name", "phone", "password", "role"]
+                }
+              }
+            }
+          },
+          "responses": {
+            "201": {
+              "description": "Registration successful",
+              "content": {
+                "application/json": {
+                  "schema": { "$ref": "#/components/schemas/LoginResponse" }
+                }
+              }
+            },
+            "409": { "description": "User already exists" }
+          }
         }
       }
-    },
-    "/health": {
-      "get": {
-        "summary": "Health check",
-        "responses": {
-          "200": { "description": "API is healthy" }
-        }
-      }
+
     }
   }
-}

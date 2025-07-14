@@ -1,11 +1,6 @@
 import { JwtPayload } from 'jsonwebtoken';
 import { Request } from 'express';
-
-// Extend user type to include _id and role for type safety
-interface AuthUser {
-  _id: string;
-  role: string;
-}
+import { AuthUser } from './AuthUser';
 
 declare global {
   namespace Express {

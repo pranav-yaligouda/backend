@@ -186,10 +186,32 @@ export const getAllDishes = async (req: Request, res: Response) => {
     if (req.query.mealType) filter.mealType = req.query.mealType;
     if (req.query.cuisineType) filter.cuisineType = req.query.cuisineType;
     // Add more filters as needed
-    const [items, totalItems] = await Promise.all([
-      Dish.find(filter).skip(skip).limit(limit).lean(),
+    const [dishes, totalItems] = await Promise.all([
+      Dish.find(filter)
+        .populate('hotel', 'name')
+        .skip(skip)
+        .limit(limit)
+        .lean(),
       Dish.countDocuments(filter)
     ]);
+    // Attach hotelName to each dish
+    const items = dishes.map(dish => ({
+      ...dish,
+      hotelName:
+        dish.hotel &&
+        typeof dish.hotel === 'object' &&
+        dish.hotel !== null &&
+        'name' in dish.hotel
+          ? (dish.hotel as any).name
+          : '',
+      hotelId:
+        dish.hotel &&
+        typeof dish.hotel === 'object' &&
+        dish.hotel !== null &&
+        '_id' in dish.hotel
+          ? (dish.hotel as any)._id
+          : dish.hotel,
+    }));
     res.json({
       success: true,
       data: {
