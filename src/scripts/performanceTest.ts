@@ -5,6 +5,7 @@ import User from '../models/User';
 import Store from '../models/Store';
 import Product from '../models/Product';
 import StoreProduct from '../models/StoreProduct';
+import { safeObjectId, eq, safeString, safeStringArray } from '../lib/safeQuery';
 
 /**
  * Database Performance Testing Script for AthaniMart

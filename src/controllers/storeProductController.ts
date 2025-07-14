@@ -3,6 +3,7 @@ import StoreProduct from '../models/StoreProduct';
 import Product from '../models/Product';
 import Store from '../models/Store';
 import { isPopulatedProduct } from '../models/StoreProduct';
+import { safeObjectId, eq, safeString, safeStringArray } from '../lib/safeQuery';
 
 export const getAllStoreProducts = async (req: Request, res: Response) => {
   try {
