@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import StoreProduct from '../models/StoreProduct';
 import Product from '../models/Product';
 import { isPopulatedProduct } from '../models/StoreProduct';
+import { safeObjectId, eq, safeString, safeStringArray } from '../lib/safeQuery';
 
 // Get all stores (public, paginated)
 export const getAllStores = async (req: Request, res: Response, next: NextFunction) => {
@@ -15,7 +16,7 @@ export const getAllStores = async (req: Request, res: Response, next: NextFuncti
     const skip = (page - 1) * limit;
     const filter: any = {};
     if (req.query.search) {
-      filter.name = { $regex: req.query.search, $options: 'i' };
+      filter.name = { $regex: safeString(req.query.search), $options: 'i' };
     }
     const [stores, totalItems] = await Promise.all([
       Store.find(filter).skip(skip).limit(limit).lean(),
@@ -98,7 +99,7 @@ export const getMyStore = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, data: null, error: 'Invalid owner ID' });
     }
 
-    let store = await Store.findOne({ owner: ownerObjId });
+    let store = await Store.findOne({ owner: eq(ownerObjId) });
     console.log('[getMyStore] owner:', ownerObjId, 'store:', store);
 
     if (!store) {
@@ -152,7 +153,7 @@ export const updateMyStore = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, data: null, error: 'Invalid store owner ID' });
     }
     const ownerId = new mongoose.Types.ObjectId(ownerRaw);
-    let store = await Store.findOne({ owner: ownerId });
+    let store = await Store.findOne({ owner: eq(ownerId) });
     if (!store) return res.status(404).json({ success: false, data: null, error: 'Store not found.' });
 
     // Update allowed fields

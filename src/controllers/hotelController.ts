@@ -10,6 +10,7 @@ import mongoose from 'mongoose';
 import Dish from '../models/Dish';
 
 import { AuthRequest } from '../types/AuthRequest';
+import { safeObjectId, eq, safeString, safeStringArray } from '../lib/safeQuery';
 
 /**
  * Get a single hotel by its ID (public endpoint).
@@ -45,10 +46,10 @@ export const getAllHotels = async (req: Request, res: Response, next: NextFuncti
     const skip = (page - 1) * limit;
     const filter: any = {};
     if (req.query.search) {
-      filter.name = { $regex: req.query.search, $options: 'i' };
+      filter.name = { $regex: safeString(req.query.search), $options: 'i' };
     }
     if (req.query.location) {
-      filter.location = { $regex: req.query.location, $options: 'i' };
+      filter.location = { $regex: safeString(req.query.location), $options: 'i' };
     }
     // Add more filters as needed
     const [hotels, totalItems] = await Promise.all([
@@ -135,7 +136,7 @@ export const getMyHotel = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Invalid manager ID' });
     }
 
-    let hotel = await Hotel.findOne({ manager: managerObjId });
+    let hotel = await Hotel.findOne({ manager: eq(managerObjId) });
     console.log('[getMyHotel] manager:', managerObjId, 'hotel:', hotel);
 
     if (!hotel) {

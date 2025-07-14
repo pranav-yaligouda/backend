@@ -8,6 +8,7 @@ import Dish from '../models/Dish';
 import Hotel from '../models/Hotel';
 
 import { AuthRequest } from '../types/AuthRequest';
+import { safeObjectId, eq, safeString, safeStringArray } from '../lib/safeQuery';
 
 /**
  * Get all available dishes for a specific hotel by hotelId (public endpoint).
@@ -148,7 +149,7 @@ export const updateDish = async (req: AuthRequest, res: Response) => {
     const hotel = await Hotel.findOne({ manager });
     if (!hotel) return res.status(404).json({ success: false, data: null, error: 'Hotel not found' });
     const { dishId } = req.params;
-    const dish = await Dish.findOne({ _id: dishId, hotel: hotel._id });
+    const dish = await Dish.findOne({ _id: eq(dishId), hotel: hotel._id });
     if (!dish) return res.status(404).json({ success: false, data: null, error: 'Dish not found' });
 
     // Only allow updates to allowed fields
@@ -181,10 +182,10 @@ export const getAllDishes = async (req: Request, res: Response) => {
     const limit = Math.max(1, Math.min(Number(req.query.limit) || 20, 100));
     const skip = (page - 1) * limit;
     const filter: any = { available: true };
-    if (req.query.hotelId) filter.hotel = req.query.hotelId;
-    if (req.query.category) filter.category = req.query.category;
-    if (req.query.mealType) filter.mealType = req.query.mealType;
-    if (req.query.cuisineType) filter.cuisineType = req.query.cuisineType;
+    if (req.query.hotelId) filter.hotel = eq(req.query.hotelId);
+    if (req.query.category) filter.category = safeString(req.query.category);
+    if (req.query.mealType) filter.mealType = safeString(req.query.mealType);
+    if (req.query.cuisineType) filter.cuisineType = safeString(req.query.cuisineType);
     // Add more filters as needed
     const [dishes, totalItems] = await Promise.all([
       Dish.find(filter)
@@ -238,7 +239,7 @@ export const deleteDish = async (req: AuthRequest, res: Response) => {
     const hotel = await Hotel.findOne({ manager });
     if (!hotel) return res.status(404).json({ message: 'Hotel not found' });
     const { dishId } = req.params;
-    const dish = await Dish.findOneAndDelete({ _id: dishId, hotel: hotel._id });
+    const dish = await Dish.findOneAndDelete({ _id: eq(dishId), hotel: hotel._id });
     if (!dish) return res.status(404).json({ message: 'Dish not found' });
     res.json({ message: 'Dish deleted' });
   } catch (err) {

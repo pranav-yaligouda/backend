@@ -10,6 +10,7 @@ import Store from '../models/Store';
 import Product from '../models/Product';
 import Dish from '../models/Dish';
 import { AdminRole, AdminPermission } from '../middlewares/adminAuth';
+import { safeObjectId, eq, safeString, safeStringArray } from '../lib/safeQuery';
 
 // ========================================
 // USER MANAGEMENT SERVICES
@@ -96,11 +97,11 @@ export const getFilteredUsers = async (filters: UserFilters) => {
   
   if (search) {
     query.$or = [
-      { name: { $regex: search, $options: 'i' } },
-      { phone: { $regex: search, $options: 'i' } },
-      { email: { $regex: search, $options: 'i' } },
-      { storeName: { $regex: search, $options: 'i' } },
-      { hotelName: { $regex: search, $options: 'i' } }
+      { name: { $regex: safeString(search), $options: 'i' } },
+      { phone: { $regex: safeString(search), $options: 'i' } },
+      { email: { $regex: safeString(search), $options: 'i' } },
+      { storeName: { $regex: safeString(search), $options: 'i' } },
+      { hotelName: { $regex: safeString(search), $options: 'i' } }
     ];
   }
 

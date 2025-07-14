@@ -3,6 +3,7 @@ import Product from '../models/Product';
 import mongoose from 'mongoose';
 import User from '../models/User';
 import { getLogger } from '../middlewares/auditLogger';
+import { safeObjectId, eq, safeString, safeStringArray } from '../lib/safeQuery';
 const logger = getLogger('orderService');
 
 // Placeholder for Socket.io instance
@@ -575,7 +576,7 @@ export default class OrderService {
   // Update optimized route for an order with real-time delivery agent location
   static async updateOrderRoute(orderId: string, agentId: string, agentLocation: { lat: number; lng: number }): Promise<IOrder | null> {
     try {
-      const order = await Order.findOne({ _id: orderId, deliveryAgentId: agentId });
+      const order = await Order.findOne({ _id: eq(orderId), deliveryAgentId: eq(agentId) });
       if (!order) {
         return null;
       }

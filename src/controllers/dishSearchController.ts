@@ -6,6 +6,7 @@
 import { Request, Response } from 'express';
 import Dish from '../models/Dish';
 import Hotel from '../models/Hotel';
+import { safeObjectId, eq, safeString, safeStringArray } from '../lib/safeQuery';
 
 /**
  * Search for dishes across all hotels with advanced filters.
@@ -17,7 +18,7 @@ export const searchDishes = async (req: Request, res: Response) => {
     const { query, mealType, cuisineType, category, dishName, dietaryTags, hotel, page = 1, pageSize = 20 } = req.query;
     let dishFilter: any = {};
     if (query) {
-      dishFilter.name = { $regex: query, $options: 'i' };
+      dishFilter.name = { $regex: safeString(query) };
     }
     if (mealType) {
       dishFilter.mealType = mealType;
@@ -32,10 +33,10 @@ export const searchDishes = async (req: Request, res: Response) => {
       dishFilter.dishName = dishName;
     }
     if (dietaryTags) {
-      dishFilter.dietaryTags = { $all: Array.isArray(dietaryTags) ? dietaryTags : [dietaryTags] };
+      dishFilter.dietaryTags = { $all: safeStringArray(dietaryTags) };
     }
     if (hotel) {
-      dishFilter.hotel = hotel;
+      dishFilter.hotel = eq(hotel);
     }
     const skip = (Number(page) - 1) * Number(pageSize);
     const [dishes, total] = await Promise.all([
