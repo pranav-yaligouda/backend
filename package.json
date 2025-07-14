@@ -6,7 +6,16 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "test": "jest"
+    "test": "jest",
+    "db:optimize": "ts-node src/scripts/simpleOptimization.ts",
+    "db:full-optimize": "ts-node src/scripts/databaseOptimization.ts",
+    "db:ensure-indexes": "ts-node src/scripts/ensureIndexes.ts",
+    "db:verify-indexes": "ts-node -e \"import('./src/config/mongoose').then(m => m.optimizeDatabase())\"",
+    "db:performance-test": "ts-node src/scripts/performanceTest.ts",
+    "db:cleanup": "ts-node -e \"import('./src/config/mongoose').then(m => m.cleanupDatabase())\"",
+    "db:monitor": "ts-node -e \"import('./src/config/mongoose').then(m => m.monitorDatabasePerformance())\"",
+    "admin:create-super": "ts-node src/scripts/createAdminUser.ts",
+    "admin:test": "ts-node src/scripts/testAdminSystem.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -15,8 +24,11 @@
     "@mui/icons-material": "^7.2.0",
     "@mui/material": "^7.2.0",
     "@react-google-maps/api": "^2.20.7",
+    "@types/cookie-parser": "^1.4.9",
     "axios": "^1.10.0",
+    "bcrypt": "^6.0.0",
     "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "date-fns": "^4.1.0",
     "dotenv": "^16.3.1",
@@ -31,9 +43,11 @@
     "react-hook-form": "^7.59.0",
     "socket.io": "^4.8.1",
     "swagger-ui-express": "^4.6.3",
+    "winston": "^3.17.0",
     "zod": "^3.25.67"
   },
   "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
     "@types/bcryptjs": "^2.4.2",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.21",
@@ -46,7 +60,8 @@
     "@types/swagger-ui-express": "^4.1.8",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.1",
+    "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.5.3"
+    "typescript": "^5.8.3"
   }
 }

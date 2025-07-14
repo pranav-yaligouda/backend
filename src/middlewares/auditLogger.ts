@@ -1,34 +1,30 @@
 import { Request, Response, NextFunction } from 'express';
-import fs from 'fs';
-import path from 'path';
+import winston from 'winston';
 
-// Simple audit logger middleware. In production, use Winston or similar.
-const logFile = path.join(__dirname, '../../logs/audit.log');
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({ filename: 'logs/audit.log' })
+  ]
+});
 
-function appendLog(entry: string) {
-  fs.appendFile(logFile, entry + '\n', err => {
-    if (err) console.error('Audit log write failed:', err);
-  });
+export function getLogger(module: string) {
+  return logger.child({ module });
 }
 
 export function auditLogger(req: Request, res: Response, next: NextFunction) {
-  const user = (req as any).user;
-  const start = Date.now();
-  res.on('finish', () => {
-    const duration = Date.now() - start;
-    // Log only for mutating requests
-    if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
-      const entry = JSON.stringify({
-        time: new Date().toISOString(),
-        method: req.method,
-        url: req.originalUrl,
-        status: res.statusCode,
-        user: user ? { id: user._id, role: user.role } : null,
-        body: req.body,
-        durationMs: duration
-      });
-      appendLog(entry);
-    }
+  logger.info('API Request', {
+    method: req.method,
+    url: req.originalUrl,
+    user: req.user?._id || null,
+    ip: req.ip,
+    body: req.body,
+    query: req.query
   });
   next();
 }

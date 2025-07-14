@@ -1,9 +1,9 @@
 // ------------------------------
 // Server Initialization
 // ------------------------------
-import app from './app';
-import mongoose from 'mongoose';
 import { createServer } from 'http';
+import mongoose from 'mongoose';
+import app from './app';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { setSocketIoInstance } from './services/orderService';
 

@@ -5,7 +5,7 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import OrderService from '../services/orderService';
-import { orderQuerySchema, orderCreateSchema, orderStatusSchema } from '../validators/orderValidators';
+import { orderQuerySchema, orderCreateSchema, orderStatusSchema, orderPickupSchema, orderDeliverySchema } from '../validation/order';
 import { OrderStatus } from '../models/Order';
 import { AuthRequest } from '../types/AuthRequest';
 import mongoose from 'mongoose';
@@ -19,7 +19,7 @@ export default class OrderController {
     try {
       if (!req.user || !req.user._id) return res.status(401).json({ success: false, data: null, error: 'Unauthorized' });
       // Validate body
-      const parsed = orderCreateSchema.safeParse(req.body);
+      const parsed = await orderCreateSchema.safeParseAsync(req.body);
       if (!parsed.success) {
         return res.status(400).json({ success: false, data: null, error: parsed.error.flatten() });
       }
@@ -95,7 +95,7 @@ export default class OrderController {
   static async getOrderById(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       if (!req.user) return res.status(401).json({ success: false, data: null, error: 'Unauthorized' });
-      const order = await OrderService.getOrderById(req.params.id, req.user);
+      const order: Record<string, any> | null = await OrderService.getOrderById(req.params.id, req.user);
       if (!order) return res.status(404).json({ success: false, data: null, error: 'Order not found or access denied' });
       res.json({ success: true, data: order, error: null });
     } catch (err: any) {
@@ -125,13 +125,94 @@ export default class OrderController {
   }
 
   /**
+   * Verify pickup with PIN and update status to PICKED_UP.
+   * Requires authentication (delivery agent role).
+   */
+  static async verifyOrderPickup(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) return res.status(401).json({ success: false, data: null, error: 'Unauthorized' });
+      // Validate body
+      const parsed = orderPickupSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, data: null, error: parsed.error.flatten() });
+      }
+      const { pin } = parsed.data;
+      const order = await OrderService.verifyOrderPickup(req.params.id, req.user, pin);
+      if (!order) return res.status(404).json({ success: false, data: null, error: 'Order not found or access denied' });
+      res.json({ success: true, data: order, error: null });
+    } catch (err: any) {
+      next(err);
+    }
+  }
+
+  /**
+   * Verify delivery with PIN and update status to DELIVERED.
+   * Requires authentication (delivery agent role).
+   */
+  static async verifyOrderDelivery(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) return res.status(401).json({ success: false, data: null, error: 'Unauthorized' });
+      // Validate body
+      const parsed = orderDeliverySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, data: null, error: parsed.error.flatten() });
+      }
+      const { pin } = parsed.data;
+      const order = await OrderService.verifyOrderDelivery(req.params.id, req.user, pin);
+      if (!order) return res.status(404).json({ success: false, data: null, error: 'Order not found or access denied' });
+      res.json({ success: true, data: order, error: null });
+    } catch (err: any) {
+      next(err);
+    }
+  }
+
+  /**
+   * Update optimized route for an order with real-time delivery agent location.
+   * Requires authentication (delivery agent role).
+   */
+  static async updateOrderRoute(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user || req.user.role !== 'delivery_agent') {
+        return res.status(401).json({ success: false, data: null, error: 'Unauthorized - Delivery agent only' });
+      }
+      
+      const { agentLocation } = req.body;
+      if (!agentLocation || !agentLocation.lat || !agentLocation.lng) {
+        return res.status(400).json({ success: false, data: null, error: 'Agent location is required' });
+      }
+      
+      const order = await OrderService.updateOrderRoute(req.params.id, req.user._id, agentLocation);
+      if (!order) return res.status(404).json({ success: false, data: null, error: 'Order not found or access denied' });
+      res.json({ success: true, data: order, error: null });
+    } catch (err: any) {
+      next(err);
+    }
+  }
+
+  /**
    * Get available orders for delivery agents.
    * Requires authentication (delivery agent role).
    */
   static async getAvailableOrdersForAgent(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const orders = await OrderService.getAvailableOrdersForAgent();
-      res.json({ success: true, data: orders, error: null });
+      res.json({ success: true, data: { items: orders }, error: null });
+    } catch (err: any) {
+      next(err);
+    }
+  }
+
+  /**
+   * Get orders assigned to the current delivery agent.
+   * Requires authentication (delivery agent role).
+   */
+  static async getOrdersForAgent(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user || req.user.role !== 'delivery_agent') {
+        return res.status(401).json({ success: false, data: null, error: 'Unauthorized - Delivery agent only' });
+      }
+      const orders = await OrderService.getOrdersForAgent(req.user._id);
+      res.json({ success: true, data: { items: orders }, error: null });
     } catch (err: any) {
       next(err);
     }
